@@ -1,0 +1,95 @@
+version: "1.1.0"
+partner_type: data
+# 数据（详细规划全量）
+rules:
+  - id: DATA-L1-CRIMINAL
+    risk_point: 数据违规被刑事立案
+    level: 1
+    trigger: "因侵犯公民个人信息等被公安机关立案"
+    data_source: "公安公告/裁判网"
+    match_any_keywords:
+      - 侵犯公民个人信息
+      - 刑事立案
+      - 公安立案
+    legal_basis: "公安公告/裁判网"
+    enabled: true
+  - id: DATA-L1-ILLEGAL-COLLECT
+    risk_point: 违规采集个人信息
+    level: 1
+    trigger: "超范围收集用户数据，被网信办/工信部通报下架"
+    data_source: "网信办公告"
+    match_any_keywords:
+      - 超范围收集
+      - 违规采集
+      - 通报下架
+      - 非法收集个人信息
+    legal_basis: "网信办/工信部公告"
+    enabled: true
+  - id: DATA-L2-SOURCE-DOUBT
+    risk_point: 数据来源合规性受质疑
+    level: 2
+    trigger: "被网信办约谈/通报/下架"
+    data_source: "网信办公告"
+    match_any_keywords:
+      - 网信办约谈
+      - 网信办通报
+      - 数据来源合规
+      - 下架整改
+    legal_basis: "网信办公告"
+    enabled: true
+  - id: DATA-L2-SECURITY
+    risk_point: 涉及数据安全事件
+    level: 2
+    trigger: "发生数据泄露/安全事故"
+    data_source: "网信办/工信部"
+    match_any_keywords:
+      - 数据泄露
+      - 安全事故
+      - 信息泄露
+    legal_basis: "网信办/工信部"
+    enabled: true
+  - id: DATA-L2-ILLEGAL-PROVIDE
+    risk_point: 非法对外提供数据
+    level: 2
+    trigger: "未经授权向第三方出售或提供数据"
+    data_source: "网信办/公安公告"
+    match_any_keywords:
+      - 出售数据
+      - 非法提供数据
+      - 未经授权提供
+    legal_basis: "网信办/公安公告"
+    enabled: true
+  - id: DATA-L2-LICENSE
+    risk_point: 经营资质存续异常
+    level: 2
+    trigger: "征信备案/增值电信许可证等资质被撤销或续期受阻"
+    data_source: "央行征信中心/工信部"
+    match_any_keywords:
+      - 征信备案
+      - 增值电信许可证
+      - 资质被撤销
+      - 续期受阻
+    legal_basis: "央行征信中心/工信部"
+    enabled: true
+  - id: DATA-L3-CLIENT-LOSS
+    risk_point: 核心客户流失
+    level: 3
+    trigger: "前3大客户中任意1家终止合作"
+    data_source: "行业公告/甲方通知"
+    match_any_keywords:
+      - 核心客户流失
+      - 前三大客户终止
+      - 主要客户终止合作
+    legal_basis: "行业公告/甲方通知"
+    enabled: true
+  - id: DATA-L4-NEW-REG
+    risk_point: 数据合规新规出台
+    level: 4
+    trigger: "《网络数据安全管理条例》等新规发布"
+    data_source: "网信办/国务院"
+    match_any_keywords:
+      - 网络数据安全管理条例
+      - 数据合规新规
+      - 数据安全法配套
+    legal_basis: "网信办/国务院"
+    enabled: true

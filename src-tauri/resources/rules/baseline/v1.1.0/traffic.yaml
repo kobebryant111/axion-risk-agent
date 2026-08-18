@@ -1,0 +1,83 @@
+version: "1.1.0"
+partner_type: traffic
+# 引流（详细规划全量）
+rules:
+  - id: TRAF-L2-LICENSE
+    risk_point: 经营资质存续异常
+    level: 2
+    trigger: "增值电信许可证等关键资质续期受阻或被撤销"
+    data_source: "工信部/通信管理局"
+    match_any_keywords:
+      - 增值电信
+      - 许可证续期受阻
+      - 许可证撤销
+      - 资质被撤销
+    legal_basis: "工信部/通信管理局"
+    enabled: true
+  - id: TRAF-L2-CLIENT-EXIT
+    risk_point: 主要合作方终止合作
+    level: 2
+    trigger: "排名前3客户中任意1家终止合作"
+    data_source: "行业公告/甲方通知"
+    match_any_keywords:
+      - 终止合作
+      - 主要客户终止
+      - 前三大客户
+      - 取消合作
+    legal_basis: "行业公告/甲方通知"
+    enabled: true
+  - id: TRAF-L2-DATA-VIOLATION
+    risk_point: 涉及数据违规
+    level: 2
+    trigger: "被网信办/工信部通报或处罚"
+    data_source: "网信办公告"
+    match_any_keywords:
+      - 网信办通报
+      - 网信办处罚
+      - 工信部通报
+      - 数据违规
+    legal_basis: "网信办公告"
+    enabled: true
+  - id: TRAF-L3-LOSS
+    risk_point: 出现季度亏损
+    level: 3
+    trigger: "连续2个季度净利润为负"
+    data_source: "年报/季报"
+    match_any_keywords:
+      - 季度亏损
+      - 净利润为负
+      - 连续亏损
+    legal_basis: "年报/季报"
+    enabled: true
+  - id: TRAF-L3-REVENUE-DOWN
+    risk_point: 营收同比下降>20%
+    level: 3
+    trigger: "季度营收同比降幅>20%"
+    data_source: "年报/季报"
+    match_any_keywords:
+      - 营收同比下降
+      - 营收下降超20
+      - 营收同比降幅
+    legal_basis: "年报/季报"
+    enabled: true
+  - id: TRAF-L3-ABNORMAL
+    risk_point: 工商异常经营
+    level: 3
+    trigger: "被列入经营异常名录"
+    data_source: "企查查"
+    match_any_keywords:
+      - 经营异常名录
+      - 经营异常
+    legal_basis: "企查查"
+    enabled: true
+  - id: TRAF-L4-COMPETITION
+    risk_point: 行业竞争格局变化
+    level: 4
+    trigger: "同业重大变动"
+    data_source: "财经媒体"
+    match_any_keywords:
+      - 同业重大变动
+      - 竞争格局
+      - 同业并购
+    legal_basis: "财经媒体"
+    enabled: true

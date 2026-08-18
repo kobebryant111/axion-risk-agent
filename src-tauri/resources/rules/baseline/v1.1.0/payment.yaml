@@ -1,0 +1,93 @@
+version: "1.1.0"
+partner_type: payment
+# 支付（详细规划全量）
+rules:
+  - id: PAY-L1-LICENSE
+    risk_point: 支付牌照被注销/暂停
+    level: 1
+    trigger: "央行公告注销或暂停支付业务许可"
+    data_source: "央行官网"
+    match_any_keywords:
+      - 支付牌照注销
+      - 支付业务许可注销
+      - 暂停支付业务
+      - 注销支付许可
+    legal_basis: "央行官网"
+    enabled: true
+  - id: PAY-L1-RESERVE
+    risk_point: 备付金违规/违规清算
+    level: 1
+    trigger: "挪用备付金、通道转租、涉赌涉诈"
+    data_source: "央行行政处罚公示"
+    match_any_keywords:
+      - 挪用备付金
+      - 通道转租
+      - 涉赌涉诈
+      - 违规清算
+    legal_basis: "央行行政处罚公示"
+    enabled: true
+  - id: PAY-L2-PBOC-PENALTY
+    risk_point: 受到央行行政处罚
+    level: 2
+    trigger: "单次罚款>500万元 或涉及反洗钱"
+    data_source: "央行/信用中国"
+    match_any_keywords:
+      - 央行行政处罚
+      - 罚款500万
+      - 罚款超过500
+    legal_basis: "央行/信用中国"
+    enabled: true
+  - id: PAY-L2-LICENSE-ABNORMAL
+    risk_point: 经营资质存续异常
+    level: 2
+    trigger: "支付业务许可证续期受阻、公示撤销支付许可"
+    data_source: "央行公告"
+    match_any_keywords:
+      - 支付业务许可证续期
+      - 续期受阻
+      - 撤销支付许可
+    legal_basis: "央行公告"
+    enabled: true
+  - id: PAY-L2-AML
+    risk_point: 反洗钱违规
+    level: 2
+    trigger: "被央行反洗钱专项检查处罚"
+    data_source: "央行/信用中国"
+    match_any_keywords:
+      - 反洗钱
+      - 反洗钱专项检查
+      - 反洗钱处罚
+    legal_basis: "央行/信用中国"
+    enabled: true
+  - id: PAY-L3-POLICY
+    risk_point: 政策变动影响业务
+    level: 3
+    trigger: "央行/支付清算协会发布影响业务模式的新规"
+    data_source: "央行官网/支付清算协会"
+    match_any_keywords:
+      - 支付清算协会
+      - 业务模式新规
+      - 支付新规
+    legal_basis: "央行官网/支付清算协会"
+    enabled: true
+  - id: PAY-L3-FEE-LIMIT
+    risk_point: 费率和限额调整
+    level: 3
+    trigger: "合作费率上调/支付限额收紧"
+    data_source: "合作通知"
+    match_any_keywords:
+      - 费率上调
+      - 支付限额收紧
+      - 限额下调
+    legal_basis: "合作通知"
+    enabled: true
+  - id: PAY-L4-CONSULTATION
+    risk_point: 行业政策征求意见
+    level: 4
+    trigger: "监管发布征求意见稿"
+    data_source: "央行官网"
+    match_any_keywords:
+      - 征求意见稿
+      - 征求意见
+    legal_basis: "央行官网"
+    enabled: true

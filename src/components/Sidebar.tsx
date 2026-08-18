@@ -5,6 +5,7 @@ type NavKey =
   | "scout"
   | "partners"
   | "rules"
+  | "agent"
   | "settings";
 
 const NAV: { key: NavKey; label: string; icon: string }[] = [
@@ -14,6 +15,7 @@ const NAV: { key: NavKey; label: string; icon: string }[] = [
   { key: "scout", label: "准入瞭望", icon: "◉" },
   { key: "partners", label: "机构名单", icon: "☰" },
   { key: "rules", label: "规则库", icon: "▤" },
+  { key: "agent", label: "问鉴控", icon: "✦" },
   { key: "settings", label: "设置", icon: "⚙" },
 ];
 
@@ -61,21 +63,6 @@ export function Sidebar({ active, onChange }: Props) {
           );
         })}
       </nav>
-
-      <div className="mt-4 rounded-3xl bg-gradient-to-br from-[#efe9ff] to-[#f7f4ff] p-4">
-        <div className="mb-1 text-sm font-semibold text-axiom-text">
-          帮助中心
-        </div>
-        <p className="mb-3 text-xs leading-relaxed text-axiom-muted">
-          四级预警、六类主体监测与准入清单说明
-        </p>
-        <button
-          type="button"
-          className="w-full rounded-full bg-axiom-accent px-3 py-2 text-xs font-semibold text-white"
-        >
-          发送反馈
-        </button>
-      </div>
     </aside>
   );
 }

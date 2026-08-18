@@ -1,0 +1,106 @@
+version: "1.1.0"
+partner_type: common
+# 通用（详细规划全量）
+rules:
+  - id: COMMON-L1-CONTROLLER-GONE
+    risk_point: 实控人失联/被刑事拘留
+    level: 1
+    trigger: "新闻或公安公告确认"
+    data_source: "新闻/企查查"
+    match_any_keywords:
+      - 实控人失联
+      - 刑事拘留
+      - 留置
+      - 逮捕
+    legal_basis: "通用风险点"
+    enabled: true
+  - id: COMMON-L1-EQUITY-FREEZE
+    risk_point: 司法冻结/股权冻结
+    level: 1
+    trigger: "主要股东股权被司法冻结>30%"
+    data_source: "企查查/裁判网"
+    match_any_keywords:
+      - 股权冻结
+      - 司法冻结
+      - 查封
+    legal_basis: "通用风险点"
+    enabled: true
+  - id: COMMON-L1-DISHONEST
+    risk_point: 列为失信被执行人
+    level: 1
+    trigger: "企查查/天眼查显示失信记录"
+    data_source: "企查查/天眼查"
+    match_any_keywords:
+      - 失信被执行人
+      - 限制高消费
+    legal_basis: "最高法失信被执行人名单规定"
+    enabled: true
+  - id: COMMON-L2-NEG-MEDIA
+    risk_point: 重大负面舆情
+    level: 2
+    trigger: "权威媒体报道重大负面"
+    data_source: "媒体监测"
+    match_any_keywords:
+      - 重大负面
+      - 监管通报
+      - 权威媒体曝光
+    legal_basis: "媒体监测"
+    enabled: true
+  - id: COMMON-L2-RATING-DOWN
+    risk_point: 信用评级下调
+    level: 2
+    trigger: "标普/穆迪/惠誉/中诚信等外部评级机构下调评级"
+    data_source: "评级机构公告"
+    match_any_keywords:
+      - 信用评级下调
+      - 评级下调
+      - 下调评级
+    legal_basis: "评级机构公告"
+    enabled: true
+  - id: COMMON-L2-LICENSE
+    risk_point: 经营资质存续异常
+    level: 2
+    trigger: "业务许可证/备案资质续期受阻、公示撤销许可、被责令暂停业务"
+    data_source: "监管网站/企查查"
+    match_any_keywords:
+      - 许可证吊销
+      - 暂停业务
+      - 续期受阻
+      - 撤销许可
+      - 责令暂停业务
+    legal_basis: "各行业监管法规"
+    enabled: true
+  - id: COMMON-L3-LITIGATION
+    risk_point: 涉诉标的>净资产5%
+    level: 3
+    trigger: "企查查/裁判网显示大额诉讼"
+    data_source: "裁判网/企查查"
+    match_any_keywords:
+      - 重大诉讼
+      - 大额诉讼
+      - 涉案金额
+      - 被起诉
+    legal_basis: "通用风险点"
+    enabled: true
+  - id: COMMON-L3-ABNORMAL
+    risk_point: 经营异常名录
+    level: 3
+    trigger: "被市场监管局列入经营异常"
+    data_source: "企查查"
+    match_any_keywords:
+      - 经营异常
+      - 经营异常名录
+    legal_basis: "企业经营异常名录管理暂行办法"
+    enabled: true
+  - id: COMMON-L4-IC-CHANGE
+    risk_point: 工商变更（非实控人）
+    level: 4
+    trigger: "注册资本/经营范围/地址变更"
+    data_source: "企查查"
+    match_any_keywords:
+      - 注册资本变更
+      - 经营范围变更
+      - 地址变更
+      - 注册地址变更
+    legal_basis: "信息跟踪"
+    enabled: true

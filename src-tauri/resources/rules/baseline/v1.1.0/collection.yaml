@@ -1,0 +1,121 @@
+version: "1.1.0"
+partner_type: collection
+# 催收（详细规划全量）
+rules:
+  - id: COLL-L1-VIOLENCE
+    risk_point: 暴力催收被刑事立案
+    level: 1
+    trigger: "因暴力催收被公安立案侦查"
+    data_source: "公安公告/裁判网"
+    match_any_keywords:
+      - 暴力催收
+      - 立案侦查
+      - 刑事立案
+    legal_basis: "刑法/治安管理处罚法"
+    enabled: true
+  - id: COLL-L1-PII
+    risk_point: 侵犯公民个人信息被立案
+    level: 1
+    trigger: "非法获取/买卖/提供公民个人信息被司法机关追诉"
+    data_source: "公安公告/裁判网"
+    match_any_keywords:
+      - 公民个人信息
+      - 非法获取
+      - 买卖个人信息
+      - 提供公民个人信息
+    legal_basis: "《个人信息保护法》第10/66条"
+    enabled: true
+  - id: COLL-L1-SHUTDOWN
+    risk_point: 被监管责令停业
+    level: 1
+    trigger: "被金融监管局/公安/市场监管责令停业整顿"
+    data_source: "监管公告"
+    match_any_keywords:
+      - 责令停业
+      - 停业整顿
+    legal_basis: "行业监管"
+    enabled: true
+  - id: COLL-L2-MULTI-EXIT
+    risk_point: 大规模违规遭多家合作方解约
+    level: 2
+    trigger: "3家以上合作机构公开取消合作"
+    data_source: "行业公告/甲方通知"
+    match_any_keywords:
+      - 多家取消合作
+      - 解约催收
+      - 终止催收合作
+      - 公开取消合作
+    legal_basis: "行业惯例/助贷新规第8条"
+    enabled: true
+  - id: COLL-L2-CONTACT-BOOK
+    risk_point: 骚扰第三方/爆通讯录
+    level: 2
+    trigger: "黑猫投诉/媒体曝光催收骚扰借款人通讯录联系人"
+    data_source: "黑猫投诉/媒体监测"
+    match_any_keywords:
+      - 爆通讯录
+      - 联系第三人
+      - 骚扰
+      - 威胁还款
+    legal_basis: "消保法/助贷新规第8条"
+    enabled: true
+  - id: COLL-L2-PENALTY-50W
+    risk_point: 受到行政处罚>50万
+    level: 2
+    trigger: "因违规催收被金融监管/公安/市场监管处罚"
+    data_source: "信用中国/企查查"
+    match_any_keywords:
+      - 行政处罚
+      - 罚款50
+      - 罚款五十万
+      - 罚款超过50
+    legal_basis: "相关法律"
+    enabled: true
+  - id: COLL-L2-REPORT-SPIKE
+    risk_point: 违规催收举报线索集中爆发
+    level: 2
+    trigger: "监管或消保收到批量举报（>50件/月）"
+    data_source: "监管通报/消保平台"
+    match_any_keywords:
+      - 批量举报
+      - 举报集中
+      - 消保举报
+      - 违规催收举报
+    legal_basis: "消保法"
+    enabled: true
+  - id: COLL-L3-HEIMAO-SPIKE
+    risk_point: 黑猫投诉量异常增长
+    level: 3
+    trigger: "近30天投诉量环比>50%"
+    data_source: "黑猫投诉平台"
+    metric: heimao_complaint_spike
+    threshold:
+      growth_ratio: 0.5
+      resolve_rate_max: 1.0
+    match_any_keywords:
+      - 黑猫投诉
+      - 投诉量环比
+    legal_basis: "信息跟踪"
+    enabled: true
+  - id: COLL-L3-LICENSE
+    risk_point: 经营资质存续异常
+    level: 3
+    trigger: "相关经营许可到期未续、经营范围受限"
+    data_source: "企查查"
+    match_any_keywords:
+      - 许可到期未续
+      - 经营范围受限
+      - 续期受阻
+    legal_basis: "行业监管"
+    enabled: true
+  - id: COLL-L4-OUTSOURCE-CHANGE
+    risk_point: 合作机构更换催收外包方
+    level: 4
+    trigger: "同业多家机构主动终止与某催收机构的合作"
+    data_source: "行业交流/媒体报道"
+    match_any_keywords:
+      - 更换催收
+      - 终止催收外包
+      - 催收外包更换
+    legal_basis: "行业动态"
+    enabled: true

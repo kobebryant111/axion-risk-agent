@@ -1,0 +1,36 @@
+version: "1.0.0"
+partner_type: guarantee
+rules:
+  - id: GUAR-L1-MULTIPLE
+    risk_point: 放大倍数超红线
+    level: 1
+    match_any_keywords:
+      - 放大倍数超
+      - 超过10倍
+    legal_basis: 融担监管条例第15条
+    enabled: true
+  - id: GUAR-L1-CONTROLLER-GUARANTEE
+    risk_point: 为控股股东/实控人担保
+    level: 1
+    match_any_keywords:
+      - 为实控人担保
+      - 为控股股东担保
+    legal_basis: 融担监管条例第17条
+    enabled: true
+  - id: GUAR-L2-BANK-EXIT
+    risk_point: 同业银行取消合作
+    level: 2
+    match_any_keywords:
+      - 取消合作
+      - 终止银担
+    legal_basis: 行业惯例
+    enabled: true
+  - id: GUAR-L3-MGMT-CHANGE
+    risk_point: 实控人/管理层变更
+    level: 3
+    match_any_keywords:
+      - 实控人变更
+      - 董事长变更
+      - 总经理变更
+    legal_basis: 行业惯例
+    enabled: true

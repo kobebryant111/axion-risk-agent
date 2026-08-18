@@ -1,0 +1,60 @@
+version: "1.0.0"
+partner_type: common
+rules:
+  - id: COMMON-L1-DISHONEST
+    risk_point: 列为失信被执行人
+    level: 1
+    match_any_keywords:
+      - 失信被执行人
+      - 限制高消费
+    legal_basis: 最高法失信被执行人名单规定
+    enabled: true
+  - id: COMMON-L1-EQUITY-FREEZE
+    risk_point: 司法冻结/股权冻结
+    level: 1
+    match_any_keywords:
+      - 股权冻结
+      - 司法冻结
+    legal_basis: 通用风险点
+    enabled: true
+  - id: COMMON-L1-CONTROLLER-GONE
+    risk_point: 实控人失联/被刑事拘留
+    level: 1
+    match_any_keywords:
+      - 实控人失联
+      - 刑事拘留
+    legal_basis: 通用风险点
+    enabled: true
+  - id: COMMON-L2-NEG-MEDIA
+    risk_point: 重大负面舆情
+    level: 2
+    match_any_keywords:
+      - 重大负面
+      - 监管通报
+    legal_basis: 媒体监测
+    enabled: true
+  - id: COMMON-L2-LICENSE
+    risk_point: 经营资质存续异常
+    level: 2
+    match_any_keywords:
+      - 许可证吊销
+      - 暂停业务
+      - 续期受阻
+    legal_basis: 各行业监管法规
+    enabled: true
+  - id: COMMON-L3-ABNORMAL
+    risk_point: 经营异常名录
+    level: 3
+    match_any_keywords:
+      - 经营异常
+    legal_basis: 企业经营异常名录管理暂行办法
+    enabled: true
+  - id: COMMON-L4-IC-CHANGE
+    risk_point: 工商变更（非实控人）
+    level: 4
+    match_any_keywords:
+      - 注册资本变更
+      - 经营范围变更
+      - 地址变更
+    legal_basis: 信息跟踪
+    enabled: true

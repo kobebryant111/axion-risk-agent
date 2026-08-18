@@ -1,80 +1,167 @@
-import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  importPartnersCsv,
+  importRulesDocument,
+  loadClues,
+  loadDashboard,
+  loadPartners,
+  loadRules,
+} from "./api";
+import {
+  BgImportToast,
+  type BgImportJob,
+  type BgImportKind,
+} from "./components/BgImportToast";
 import { Sidebar, type NavKey } from "./components/Sidebar";
-import { demoClues, demoDashboard } from "./data/demo";
-import type { DashboardSnapshot, RiskClue } from "./data/types";
+import { emptyDashboard } from "./data/empty";
+import type { DashboardSnapshot, Partner, RiskClue, RuleView } from "./data/types";
+import { fileToTemplateCsv } from "./lib/excelTemplates";
+import { formatInvokeError } from "./lib/fileImport";
+import { AgentPage } from "./pages/Agent";
 import { Overview } from "./pages/Overview";
-import { Placeholder } from "./pages/Placeholder";
-
-async function loadDashboard(): Promise<DashboardSnapshot> {
-  try {
-    return await invoke<DashboardSnapshot>("get_dashboard_snapshot");
-  } catch {
-    return demoDashboard;
-  }
-}
-
-async function loadClues(): Promise<RiskClue[]> {
-  try {
-    return await invoke<RiskClue[]>("list_risk_clues");
-  } catch {
-    return demoClues;
-  }
-}
+import { PartnersPage } from "./pages/Partners";
+import { GuardianPage } from "./pages/Guardian";
+import { RulesPage } from "./pages/Rules";
+import { ScoutPage } from "./pages/Scout";
+import { SettingsPage } from "./pages/Settings";
+import { WhistlePage } from "./pages/Whistle";
 
 export default function App() {
   const [nav, setNav] = useState<NavKey>("overview");
-  const [dash, setDash] = useState<DashboardSnapshot>(demoDashboard);
-  const [clues, setClues] = useState<RiskClue[]>(demoClues);
+  const [dash, setDash] = useState<DashboardSnapshot>(emptyDashboard());
+  const [clues, setClues] = useState<RiskClue[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [rules, setRules] = useState<RuleView[]>([]);
+  const [bgJob, setBgJob] = useState<BgImportJob | null>(null);
+  const jobLock = useRef(false);
 
-  useEffect(() => {
-    void (async () => {
-      const [d, c] = await Promise.all([loadDashboard(), loadClues()]);
-      setDash(d);
-      setClues(c);
-    })();
+  const refreshAll = useCallback(async () => {
+    const [d, c, p, r] = await Promise.all([
+      loadDashboard(),
+      loadClues(),
+      loadPartners(),
+      loadRules(),
+    ]);
+    setDash(d);
+    setClues(c);
+    setPartners(p);
+    setRules(r);
   }, []);
 
+  useEffect(() => {
+    void refreshAll();
+  }, [refreshAll]);
+
+  const runBgImport = useCallback(
+    async (kind: BgImportKind, file: File) => {
+      if (jobLock.current) {
+        setBgJob({
+          kind,
+          running: false,
+          text: "",
+          error: "已有导入任务在进行，请稍后再试",
+        });
+        return;
+      }
+      jobLock.current = true;
+      setBgJob({
+        kind,
+        running: true,
+        text: `已选择「${file.name}」，正在读取文件…`,
+      });
+
+      try {
+        await new Promise((r) => setTimeout(r, 40));
+
+        setBgJob({
+          kind,
+          running: true,
+          text: `正在读取「${file.name}」…`,
+        });
+        await new Promise((r) => setTimeout(r, 40));
+
+        const csv = await fileToTemplateCsv(file, kind);
+
+        setBgJob({
+          kind,
+          running: true,
+          text: `正在按固定模板导入「${file.name}」（可继续操作）…`,
+        });
+        await new Promise((r) => setTimeout(r, 40));
+
+        if (kind === "partners") {
+          const res = await importPartnersCsv(csv, true);
+          setPartners(res.partners);
+          setBgJob({
+            kind,
+            running: false,
+            text: "",
+            result: res.message,
+          });
+        } else {
+          const res = await importRulesDocument(csv, true);
+          setRules(res.rules);
+          setBgJob({
+            kind,
+            running: false,
+            text: "",
+            result: res.message,
+          });
+        }
+      } catch (e) {
+        setBgJob({
+          kind,
+          running: false,
+          text: "",
+          error: formatInvokeError(e),
+        });
+      } finally {
+        jobLock.current = false;
+      }
+    },
+    [],
+  );
+
   return (
-    <div className="box-border flex h-full gap-4 bg-axiom-bg p-4">
+    <div className="box-border flex h-full min-h-0 gap-4 overflow-hidden bg-axiom-bg p-4">
       <Sidebar active={nav} onChange={setNav} />
       {nav === "overview" && <Overview dash={dash} clues={clues} />}
       {nav === "whistle" && (
-        <Placeholder
-          title="风险吹哨"
-          desc="日度/周度舆情监测、降噪过滤、四级预警与标准化风险表。下一迭代接入黑猫与规则引擎。"
+        <WhistlePage
+          clues={clues}
+          partners={partners}
+          onCluesChanged={setClues}
+          onRefreshAll={refreshAll}
         />
       )}
-      {nav === "guardian" && (
-        <Placeholder
-          title="经营守护"
-          desc="财报导入、盈利/偿债/运营/现金流四维分析与融担专项指标，输出季度经营评估报告。"
-        />
-      )}
-      {nav === "scout" && (
-        <Placeholder
-          title="准入瞭望"
-          desc="一票否决 / 重大违规 / 关注事项实时研判，输出通过、有条件通过或否决意见书。"
-        />
-      )}
+      {nav === "guardian" && <GuardianPage partners={partners} />}
+      {nav === "scout" && <ScoutPage partners={partners} />}
       {nav === "partners" && (
-        <Placeholder
-          title="机构名单"
-          desc="维护六类合作主体主数据：全称、简称、集团、USCC、关联方与合作状态。"
+        <PartnersPage
+          partners={partners}
+          onChanged={setPartners}
+          onGoSettings={() => setNav("settings")}
+          importRunning={bgJob?.running === true && bgJob.kind === "partners"}
+          onStartExcelImport={(file) => void runBgImport("partners", file)}
         />
       )}
       {nav === "rules" && (
-        <Placeholder
-          title="规则库"
-          desc="四级预警规则、关键词双条件匹配、信息源可信度分级与版本管理。"
+        <RulesPage
+          rules={rules}
+          onChanged={setRules}
+          onGoSettings={() => setNav("settings")}
+          importRunning={bgJob?.running === true && bgJob.kind === "rules"}
+          onStartExcelImport={(file) => void runBgImport("rules", file)}
         />
       )}
-      {nav === "settings" && (
-        <Placeholder
-          title="设置"
-          desc="LLM 网关、外部数据源凭证、跑批调度与本地审计日志配置。"
-        />
-      )}
+      {nav === "agent" && <AgentPage onMutated={() => void refreshAll()} />}
+      {nav === "settings" && <SettingsPage />}
+
+      <BgImportToast
+        job={bgJob}
+        onDismiss={() => setBgJob(null)}
+        onOpenTarget={(kind) => setNav(kind === "partners" ? "partners" : "rules")}
+      />
     </div>
   );
 }

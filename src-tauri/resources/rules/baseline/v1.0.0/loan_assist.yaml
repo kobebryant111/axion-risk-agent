@@ -1,0 +1,57 @@
+version: "1.0.0"
+partner_type: loan
+rules:
+  - id: LOAN-L1-COST-24
+    risk_point: 综合融资成本超24%
+    level: 1
+    match_any_keywords:
+      - 综合融资成本超
+      - 超过24%
+      - 利率超24
+    legal_basis: 金规〔2025〕9号第6条
+    enabled: true
+  - id: LOAN-L1-BLACKLIST
+    risk_point: 被监管列入取缔名单
+    level: 1
+    match_any_keywords:
+      - 取缔名单
+      - 非法金融活动
+    legal_basis: 刑法/银行业监督法
+    enabled: true
+  - id: LOAN-L2-VIOLENT-COLLECTION
+    risk_point: 出现大规模违规催收
+    level: 2
+    match_any_keywords:
+      - 暴力催收
+      - 违规催收
+      - 威胁还款
+      - 骚扰
+    legal_basis: 助贷新规第8条
+    enabled: true
+  - id: LOAN-L2-ADMIN-PENALTY
+    risk_point: 受到监管行政处罚
+    level: 2
+    match_any_keywords:
+      - 行政处罚
+      - 罚款
+    legal_basis: 相关法律
+    enabled: true
+  - id: LOAN-L3-HEIMAO-SPIKE
+    risk_point: 黑猫投诉量异常增长
+    level: 3
+    metric: heimao_complaint_spike
+    # 近30天投诉量环比>50% 且 解决率<30%
+    threshold:
+      growth_ratio: 0.5
+      resolve_rate_max: 0.3
+    legal_basis: 消保法/助贷新规第8条
+    enabled: true
+  - id: LOAN-L4-HEIMAO-HIGH
+    risk_point: 黑猫投诉量高位无突增
+    level: 4
+    metric: heimao_complaint_high_stable
+    threshold:
+      min_count: 20
+      growth_ratio_max: 0.5
+    legal_basis: 信息跟踪
+    enabled: true

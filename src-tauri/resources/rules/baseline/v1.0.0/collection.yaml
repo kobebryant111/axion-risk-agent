@@ -1,0 +1,57 @@
+version: "1.0.0"
+partner_type: collection
+rules:
+  - id: COLL-L1-VIOLENCE
+    risk_point: 暴力催收被刑事立案
+    level: 1
+    match_any_keywords:
+      - 暴力催收
+      - 立案侦查
+      - 刑事立案
+    legal_basis: 刑法/治安管理处罚法
+    enabled: true
+  - id: COLL-L1-PII
+    risk_point: 侵犯公民个人信息被立案
+    level: 1
+    match_any_keywords:
+      - 公民个人信息
+      - 非法获取
+      - 买卖个人信息
+    legal_basis: 个人信息保护法第10/66条
+    enabled: true
+  - id: COLL-L1-SHUTDOWN
+    risk_point: 被监管责令停业
+    level: 1
+    match_any_keywords:
+      - 责令停业
+      - 停业整顿
+    legal_basis: 行业监管
+    enabled: true
+  - id: COLL-L2-CONTACT-BOOK
+    risk_point: 骚扰第三方/爆通讯录
+    level: 2
+    match_any_keywords:
+      - 爆通讯录
+      - 联系第三人
+      - 骚扰
+      - 威胁还款
+    legal_basis: 消保法/助贷新规第8条
+    enabled: true
+  - id: COLL-L2-PENALTY-50W
+    risk_point: 受到行政处罚>50万
+    level: 2
+    match_any_keywords:
+      - 行政处罚
+      - 罚款50
+      - 罚款五十
+    legal_basis: 相关法律
+    enabled: true
+  - id: COLL-L3-HEIMAO-SPIKE
+    risk_point: 黑猫投诉量异常增长
+    level: 3
+    metric: heimao_complaint_spike
+    threshold:
+      growth_ratio: 0.5
+      resolve_rate_max: 1.0
+    legal_basis: 信息跟踪
+    enabled: true

@@ -1,0 +1,201 @@
+version: "1.1.0"
+partner_type: loan
+# 助贷（详细规划全量）
+rules:
+  - id: LOAN-L1-COST-24
+    risk_point: 综合融资成本超24%
+    level: 1
+    trigger: "贷款利率+增信服务费 >24%"
+    data_source: "贷款合同/客户投诉"
+    match_any_keywords:
+      - 综合融资成本超
+      - 超过24%
+      - 利率超24
+      - 融资成本超24
+    legal_basis: "金规〔2025〕9号第6条/最高法意见"
+    enabled: true
+  - id: LOAN-L1-BLACKLIST
+    risk_point: 被监管列入取缔名单
+    level: 1
+    trigger: "被金融监管局/公安列为非法金融活动"
+    data_source: "监管公告/公安部"
+    match_any_keywords:
+      - 取缔名单
+      - 非法金融活动
+    legal_basis: "刑法/银行业监督法"
+    enabled: true
+  - id: LOAN-L1-FUND-CHAIN
+    risk_point: 平台资金链断裂
+    level: 1
+    trigger: "无法正常兑付/大面积贷款违约"
+    data_source: "媒体报道/银行通知"
+    match_any_keywords:
+      - 资金链断裂
+      - 无法兑付
+      - 大面积违约
+      - 无法正常兑付
+    legal_basis: "助贷新规第3条"
+    enabled: true
+  - id: LOAN-L1-NOT-ON-LIST
+    risk_point: 未进入银行名单制管理
+    level: 1
+    trigger: "合作银行官网未公布该平台为名单内机构"
+    data_source: "银行官网"
+    match_any_keywords:
+      - 未纳入名单制
+      - 名单外机构
+      - 未进入银行名单
+    legal_basis: "助贷新规第4条"
+    enabled: true
+  - id: LOAN-L2-VIOLENT-COLLECTION
+    risk_point: 出现大规模违规催收
+    level: 2
+    trigger: "被多家媒体曝光暴力催收/监管部门介入调查"
+    data_source: "黑猫投诉/媒体"
+    match_any_keywords:
+      - 暴力催收
+      - 违规催收
+      - 威胁还款
+      - 骚扰
+    legal_basis: "助贷新规第8条"
+    enabled: true
+  - id: LOAN-L2-NPL
+    risk_point: 不良率显著恶化
+    level: 2
+    trigger: "90天+不良率环比上升>50%或绝对值>5%"
+    data_source: "贷款表现数据"
+    match_any_keywords:
+      - 不良率上升
+      - 不良率恶化
+      - 90天不良
+    legal_basis: "助贷新规第3条"
+    enabled: true
+  - id: LOAN-L2-COMPENSATION
+    risk_point: 代偿赔付率异常
+    level: 2
+    trigger: "代偿赔付率环比>30%增长"
+    data_source: "银行报表"
+    match_any_keywords:
+      - 代偿赔付率
+      - 代偿率异常
+      - 赔付率增长
+    legal_basis: "助贷新规第3条"
+    enabled: true
+  - id: LOAN-L2-ADMIN-PENALTY
+    risk_point: 受到监管行政处罚
+    level: 2
+    trigger: "被金融监管局/央行/市监局行政处罚"
+    data_source: "信用中国/企查查"
+    match_any_keywords:
+      - 行政处罚
+      - 金融监管局处罚
+      - 央行处罚
+    legal_basis: "相关法律"
+    enabled: true
+  - id: LOAN-L2-LICENSE
+    risk_point: 经营资质存续异常
+    level: 2
+    trigger: "业务许可证/备案资质续期受阻、许可证公示撤销"
+    data_source: "金融监管局公告"
+    match_any_keywords:
+      - 续期受阻
+      - 许可证撤销
+      - 备案撤销
+      - 资质存续异常
+    legal_basis: "行业监管"
+    enabled: true
+  - id: LOAN-L2-RATING-DOWN
+    risk_point: 信用评级下调
+    level: 2
+    trigger: "外部信用评级机构下调评级"
+    data_source: "评级机构公告"
+    match_any_keywords:
+      - 信用评级下调
+      - 评级下调
+    legal_basis: "行业惯例"
+    enabled: true
+  - id: LOAN-L3-HEIMAO-SPIKE
+    risk_point: 黑猫投诉量异常增长
+    level: 3
+    trigger: "近30天投诉量环比>50%且投诉解决率<30%"
+    data_source: "黑猫投诉平台"
+    metric: heimao_complaint_spike
+    threshold:
+      growth_ratio: 0.5
+      resolve_rate_max: 0.3
+    match_any_keywords:
+      - 黑猫投诉
+      - 投诉量环比
+    legal_basis: "消保法/助贷新规第8条"
+    enabled: true
+  - id: LOAN-L3-REVENUE-DOWN
+    risk_point: 营收同比下滑>20%
+    level: 3
+    trigger: "季度营收同比降幅>20%"
+    data_source: "年报/季报"
+    match_any_keywords:
+      - 营收同比下滑
+      - 营收下降超20
+      - 营收同比降幅
+    legal_basis: "财务异常信号"
+    enabled: true
+  - id: LOAN-L3-FUNDING-COST
+    risk_point: 资金成本显著上升
+    level: 3
+    trigger: "融资成本率环比上升>100bp"
+    data_source: "年报/发债公告"
+    match_any_keywords:
+      - 资金成本上升
+      - 融资成本率上升
+      - 融资成本上涨
+    legal_basis: "财务异常信号"
+    enabled: true
+  - id: LOAN-L3-BANK-COUNT
+    risk_point: 合作银行数量减少
+    level: 3
+    trigger: "合作银行数量环比减少≥1家"
+    data_source: "银行官网名单"
+    match_any_keywords:
+      - 合作银行减少
+      - 退出合作银行
+      - 合作银行数量减少
+    legal_basis: "行业惯例"
+    enabled: true
+  - id: LOAN-L3-REG-TALK
+    risk_point: 监管约谈/问询
+    level: 3
+    trigger: "被金融监管局/证监局约谈"
+    data_source: "监管公告/新闻"
+    match_any_keywords:
+      - 监管约谈
+      - 证监局约谈
+      - 问询函
+      - 监管问询
+    legal_basis: "监管互动"
+    enabled: true
+  - id: LOAN-L4-HEIMAO-HIGH
+    risk_point: 黑猫投诉量高位无突增
+    level: 4
+    trigger: "投诉量行业高位但无环比异常"
+    data_source: "黑猫投诉平台"
+    metric: heimao_complaint_high_stable
+    threshold:
+      min_count: 20
+      growth_ratio_max: 0.5
+    match_any_keywords:
+      - 投诉量高位
+      - 黑猫投诉
+    legal_basis: "信息跟踪"
+    enabled: true
+  - id: LOAN-L4-COMPETITION
+    risk_point: 行业竞争格局变化
+    level: 4
+    trigger: "同业上市/退市/重大并购"
+    data_source: "财经媒体"
+    match_any_keywords:
+      - 同业上市
+      - 同业退市
+      - 重大并购
+      - 竞争格局
+    legal_basis: "行业跟踪"
+    enabled: true

@@ -14,29 +14,13 @@ export function Overview({ dash, clues }: Props) {
   return (
     <div className="flex min-h-0 flex-1 gap-4 overflow-hidden">
       <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              欢迎回来，{dash.userName}！
-            </h1>
-            <p className="mt-1 text-sm text-axiom-muted">
-              监测日 {dash.monitorDate} · 昨日有效线索 {dash.kpiEffective} 条
-            </p>
+            <div className="text-xs font-semibold text-axiom-accent">总览</div>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight">风险监测看板</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex h-10 w-56 items-center gap-2 rounded-full bg-white px-4 text-sm text-axiom-muted shadow-soft">
-              <span>⌕</span>
-              <span>搜索机构 / USCC / 线索</span>
-            </div>
-            <button
-              type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-axiom-muted shadow-soft"
-            >
-              🔔
-            </button>
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-axiom-soft text-sm font-bold text-axiom-accent">
-              风
-            </div>
+          <div className="text-sm text-axiom-muted">
+            {dash.monitorDate}
           </div>
         </div>
 

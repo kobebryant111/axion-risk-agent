@@ -1,0 +1,239 @@
+version: "1.1.0"
+partner_type: guarantee
+# 融资担保（详细规划全量）
+rules:
+  - id: GUAR-L1-MULTIPLE
+    risk_point: 放大倍数超红线
+    level: 1
+    trigger: "担保责任余额/净资产 >10倍（普通）或 >15倍（小微三农）"
+    data_source: "审计报告/在保台账"
+    match_any_keywords:
+      - 放大倍数超
+      - 超过10倍
+      - 超过15倍
+      - 担保责任余额
+    legal_basis: "融担监管条例第15条"
+    enabled: true
+  - id: GUAR-L1-ILLEGAL-FUND
+    risk_point: 违规吸纳资金
+    level: 1
+    trigger: "以担保名义变相吸收公众资金、非法集资"
+    data_source: "监管处罚公示/公安公告"
+    match_any_keywords:
+      - 非法集资
+      - 变相吸收公众资金
+      - 以担保名义吸收
+    legal_basis: "融担监管条例第23条"
+    enabled: true
+  - id: GUAR-L1-CONTROLLER-GUARANTEE
+    risk_point: 为控股股东/实控人担保
+    level: 1
+    trigger: "一旦发生即触发"
+    data_source: "企查查/审计报告"
+    match_any_keywords:
+      - 为实控人担保
+      - 为控股股东担保
+    legal_basis: "融担监管条例第17条"
+    enabled: true
+  - id: GUAR-L1-FORBIDDEN-BIZ
+    risk_point: 从事吸收存款/自营贷款
+    level: 1
+    trigger: "一旦发现即触发"
+    data_source: "监管处罚公示"
+    match_any_keywords:
+      - 吸收存款
+      - 自营贷款
+      - 受托投资
+    legal_basis: "融担监管条例第23条"
+    enabled: true
+  - id: GUAR-L1-LICENSE-REVOKE
+    risk_point: 牌照被吊销或责令停业
+    level: 1
+    trigger: "一旦发生即触发"
+    data_source: "信用中国/金融监管局"
+    match_any_keywords:
+      - 牌照吊销
+      - 许可证吊销
+      - 责令停业
+      - 停业整顿
+    legal_basis: "融担监管条例"
+    enabled: true
+  - id: GUAR-L1-DEFAULT
+    risk_point: 发生重大代偿违约
+    level: 1
+    trigger: "未按约定代偿，银行发起追偿诉讼"
+    data_source: "银行通知/裁判网"
+    match_any_keywords:
+      - 代偿违约
+      - 未按约定代偿
+      - 追偿诉讼
+    legal_basis: "银担合作协议"
+    enabled: true
+  - id: GUAR-L2-MULTIPLE-NEAR
+    risk_point: 放大倍数接近红线
+    level: 2
+    trigger: "放大倍数 >8倍（普通）"
+    data_source: "审计报告/在保台账"
+    match_any_keywords:
+      - 放大倍数接近
+      - 超过8倍
+      - 放大倍数>8
+    legal_basis: "融担监管条例第15条"
+    enabled: true
+  - id: GUAR-L2-FRAUD
+    risk_point: 财务造假
+    level: 2
+    trigger: "虚增担保收入、隐瞒代偿义务、虚报净资产"
+    data_source: "审计异常/财务报表异常波动"
+    match_any_keywords:
+      - 财务造假
+      - 虚增担保收入
+      - 隐瞒代偿
+      - 虚报净资产
+    legal_basis: "融担监管条例/会计法"
+    enabled: true
+  - id: GUAR-L2-CONCENTRATION
+    risk_point: 单一客户集中度超标
+    level: 2
+    trigger: "单一被担保人 >净资产10% 或关联方合计 >15%"
+    data_source: "审计报告/担保台账"
+    match_any_keywords:
+      - 集中度超标
+      - 单一被担保人
+      - 关联方合计超
+    legal_basis: "融担监管条例第16条"
+    enabled: true
+  - id: GUAR-L2-RESERVE
+    risk_point: 未足额提取准备金
+    level: 2
+    trigger: "未到期责任准备金+担保赔偿准备金计提不足"
+    data_source: "审计报告"
+    match_any_keywords:
+      - 准备金不足
+      - 未足额提取
+      - 未到期责任准备金
+      - 担保赔偿准备金
+    legal_basis: "融担监管条例第18条"
+    enabled: true
+  - id: GUAR-L2-ASSET-RATIO
+    risk_point: 资产比例不合规
+    level: 2
+    trigger: "(净资产+准备金)/资产总额 <60% 或 I+II级资产 <70%"
+    data_source: "审计报告"
+    match_any_keywords:
+      - 资产比例不合规
+      - 资产比例不达标
+    legal_basis: "融资担保公司资产比例管理办法"
+    enabled: true
+  - id: GUAR-L2-BANK-EXIT
+    risk_point: 同业银行取消合作
+    level: 2
+    trigger: "2家以上银行公开取消合作"
+    data_source: "银行官网/行业公告"
+    match_any_keywords:
+      - 取消合作
+      - 终止银担
+      - 银行取消合作
+    legal_basis: "行业惯例"
+    enabled: true
+  - id: GUAR-L2-COMPENSATION-RATE
+    risk_point: 代偿率显著恶化
+    level: 2
+    trigger: "代偿率环比上升 >50% 或绝对值 >5%"
+    data_source: "在保+代偿数据"
+    match_any_keywords:
+      - 代偿率上升
+      - 代偿率恶化
+      - 代偿率超
+    legal_basis: "行业警戒线"
+    enabled: true
+  - id: GUAR-L3-MGMT-CHANGE
+    risk_point: 实控人/管理层变更
+    level: 3
+    trigger: "实控人、董事长、总经理变更"
+    data_source: "企查查/工商变更"
+    match_any_keywords:
+      - 实控人变更
+      - 董事长变更
+      - 总经理变更
+    legal_basis: "行业惯例"
+    enabled: true
+  - id: GUAR-L3-AUDIT-QUALIFIED
+    risk_point: 审计出具非标意见
+    level: 3
+    trigger: "年报审计意见为保留/否定/无法表示"
+    data_source: "审计报告"
+    match_any_keywords:
+      - 非标意见
+      - 保留意见
+      - 否定意见
+      - 无法表示意见
+    legal_basis: "融担监管条例第34条"
+    enabled: true
+  - id: GUAR-L3-REG-RATING
+    risk_point: 监管评级下调
+    level: 3
+    trigger: "分类监管评级降至C级或D级"
+    data_source: "监管评级公示"
+    match_any_keywords:
+      - 监管评级
+      - 分类监管评级
+      - 降至C级
+      - 降至D级
+    legal_basis: "地方金融局分类监管办法"
+    enabled: true
+  - id: GUAR-L3-ADMIN-PENALTY
+    risk_point: 受到行政处罚
+    level: 3
+    trigger: "被地方金融局/市场监管部门罚款"
+    data_source: "信用中国/企查查"
+    match_any_keywords:
+      - 行政处罚
+      - 地方金融局罚款
+      - 市场监管罚款
+    legal_basis: "行政处罚法"
+    enabled: true
+  - id: GUAR-L3-LITIGATION
+    risk_point: 涉及重大诉讼
+    level: 3
+    trigger: "作为被告，涉案金额 >净资产5%"
+    data_source: "裁判网"
+    match_any_keywords:
+      - 重大诉讼
+      - 涉案金额
+      - 作为被告
+    legal_basis: "行业惯例"
+    enabled: true
+  - id: GUAR-L3-LICENSE-DYNAMIC
+    risk_point: 经营资质动态异常
+    level: 3
+    trigger: "许可证续期受阻、被责令暂停新增业务"
+    data_source: "金融监管局网站/企查查"
+    match_any_keywords:
+      - 许可证续期受阻
+      - 暂停新增业务
+      - 责令暂停新增
+    legal_basis: "地方金融局公告"
+    enabled: true
+  - id: GUAR-L4-IC-CHANGE
+    risk_point: 工商信息变更（非实控人）
+    level: 4
+    trigger: "注册资本、经营范围、注册地址变更"
+    data_source: "企查查"
+    match_any_keywords:
+      - 注册资本变更
+      - 经营范围变更
+      - 注册地址变更
+    legal_basis: "信息跟踪"
+    enabled: true
+  - id: GUAR-L4-POLICY
+    risk_point: 行业政策变化
+    level: 4
+    trigger: "融担行业新规发布"
+    data_source: "金融监管局网站"
+    match_any_keywords:
+      - 融担新规
+      - 融资担保新规
+      - 行业政策
+    legal_basis: "信息跟踪"
+    enabled: true

@@ -1,0 +1,65 @@
+version: "1.0.0"
+# 主体词 AND 风险关键词 双条件匹配用
+categories:
+  criminal_dishonesty:
+    level_hint: 1
+    words:
+      - 经营异常
+      - 股权冻结
+      - 查封
+      - 冻结
+      - 拍卖
+      - 失信被执行人
+      - 限制高消费
+      - 终本
+      - 破产
+      - 重整
+      - 清算
+      - 立案
+      - 留置
+      - 逮捕
+      - 判决
+  regulatory:
+    level_hint: 2
+    words:
+      - 处罚
+      - 罚款
+      - 约谈
+      - 调查
+      - 问询
+      - 警示函
+      - 整改
+      - 吊销
+      - 停业
+  financial:
+    level_hint: 3
+    words:
+      - 欠薪
+      - 欠税
+      - 债务逾期
+      - 商票逾期
+      - 停工
+      - 裁员
+      - 资产出售
+  finance_fatal:
+    level_hint: 1
+    words:
+      - 许可证吊销
+      - 暂停业务
+      - 反洗钱
+      - 信息泄露
+      - 暴力催收
+      - 骚扰
+      - 涉诈
+      - 涉赌
+      - 爆通讯录
+      - 威胁还款
+  finance_watch:
+    level_hint: 2
+    words:
+      - 备付金
+      - 违规
+      - 代偿
+      - 催收
+      - 投诉
+      - 征信异议
