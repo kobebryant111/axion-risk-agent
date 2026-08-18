@@ -209,16 +209,32 @@ npm run tauri dev
 
 前端开发地址：`http://localhost:1421`。
 
-打包：
+打包（发给同事即可，不用上架）：
+
+**本机打 Mac 包**（你现在这台 Mac）：
 
 ```bash
+cd /Users/wanfeng/IdeaProjects/axiom-risk-agent
+npm install
 npm run tauri build
 ```
 
-发给同事用时：
+安装包在：
 
-- **Mac**：直接发 `.dmg` / `.app`。系统自带 WKWebView，不用另装浏览器内核。未签名时对方需在「隐私与安全性」里仍打开。
-- **Windows**：发 NSIS 安装包（`tauri build` 产物）。安装时若没有 WebView2，安装器会检测并引导下载；若对方直接跑 exe，程序启动时也会检测，没有则询问后自动从 Microsoft 下载安装。需能访问微软下载地址。内网完全断外网时，请对方事先安装 [WebView2 运行时](https://go.microsoft.com/fwlink/p/?LinkId=2124703)。
+- `src-tauri/target/release/bundle/dmg/`（`.dmg`，发给别人用这个）
+- `src-tauri/target/release/bundle/macos/`（`.app`）
+
+未签名时，对方第一次打开可能要到「系统设置 → 隐私与安全性」点仍要打开。
+
+**Windows 包不要在 Mac 上打。** 用 GitHub Actions（已加手动工作流）：
+
+1. 先把 `.github/workflows/build.yml` 推到 GitHub。
+2. 打开仓库 → **Actions** → **Build installers** → **Run workflow**。
+3. 跑完后进该次运行，下载制品 `macos-arm64`、`windows-x64`。
+
+Windows 产物是 NSIS 的 `.exe`。对方没装 WebView2 时，安装器/启动时会提示自动下载。
+
+有一台 Windows 电脑时也可以在那边执行同样的 `npm run tauri build`，产物在 `src-tauri/target/release/bundle/nsis/`。
 
 ---
 
