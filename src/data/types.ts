@@ -178,20 +178,20 @@ export type EnterpriseMcpTestResult = {
   toolCount: number;
 };
 
-export type BaiduSearchSettings = {
+export type TavilySettings = {
   enabled: boolean;
   hasApiKey: boolean;
   ready: boolean;
   useInBatch: boolean;
 };
 
-export type BaiduSearchSettingsSave = {
+export type TavilySettingsSave = {
   enabled?: boolean;
   apiKey?: string;
   useInBatch?: boolean;
 };
 
-export type BaiduSearchTestResult = {
+export type TavilyTestResult = {
   ok: boolean;
   message: string;
   resultCount: number;
@@ -229,7 +229,6 @@ export type BatchResult = {
   sourceErrors: string[];
   clues: RiskClue[];
   scopeNote?: string;
-  searchQueries?: string[];
 };
 
 export type WhistleSchedule = {
@@ -240,14 +239,12 @@ export type WhistleSchedule = {
   /** 1=周一 … 7=周日 */
   weeklyDow: number;
   weeklyTime: string;
-    lastDailyRun?: string | null;
-    lastWeeklyRun?: string | null;
-    nextDailyHint: string;
-    nextWeeklyHint: string;
-    partnerIds?: string[];
-    scopeHint?: string;
-    lastScopeMode?: string;
-    lastScopeIds?: string[];
+  lastDailyRun?: string | null;
+  lastWeeklyRun?: string | null;
+  nextDailyHint: string;
+  nextWeeklyHint: string;
+  partnerIds?: string[];
+  scopeHint?: string;
 };
 
 export type WhistleScheduleSave = {

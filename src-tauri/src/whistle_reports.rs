@@ -6,7 +6,7 @@ use crate::models::{
     WhistleScheduleSave,
 };
 use crate::pipeline;
-use chrono::{Datelike, Duration, Local, NaiveDate, NaiveTime, Weekday};
+use chrono::{Datelike, Duration, Local, NaiveTime, Weekday};
 use rusqlite::{params, Connection};
 use uuid::Uuid;
 
@@ -18,7 +18,6 @@ const KEY_WEEKLY_TIME: &str = "whistle_weekly_time";
 const KEY_LAST_DAILY: &str = "whistle_last_daily_run";
 const KEY_LAST_WEEKLY: &str = "whistle_last_weekly_run";
 const KEY_PARTNER_IDS: &str = "whistle_partner_ids";
-const KEY_LAST_SCOPE: &str = "whistle_last_scope_json";
 
 pub fn ensure_schema(conn: &Connection) -> Result<(), String> {
     conn.execute_batch(
@@ -125,7 +124,6 @@ pub fn load_schedule(conn: &Connection) -> Result<WhistleSchedule, String> {
     let last_daily_run = db::get_setting(conn, KEY_LAST_DAILY)?;
     let last_weekly_run = db::get_setting(conn, KEY_LAST_WEEKLY)?;
     let partner_ids = load_partner_ids(conn)?;
-    let (last_scope_mode, last_scope_ids) = load_last_scope(conn)?;
     let partner_total = db::list_partners(conn).map(|v| v.len()).unwrap_or(0);
     let scope_hint = if partner_ids.is_empty() {
         if partner_total == 0 {
@@ -149,8 +147,6 @@ pub fn load_schedule(conn: &Connection) -> Result<WhistleSchedule, String> {
         next_weekly_hint: String::new(),
         partner_ids,
         scope_hint,
-        last_scope_mode,
-        last_scope_ids,
     };
     fill_next_hints(&mut schedule);
     Ok(schedule)
@@ -255,59 +251,6 @@ fn load_partner_ids(conn: &Connection) -> Result<Vec<String>, String> {
         .collect())
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-struct LastScopeStored {
-    mode: String,
-    ids: Vec<String>,
-}
-
-fn load_last_scope(conn: &Connection) -> Result<(String, Vec<String>), String> {
-    let raw = match db::get_setting(conn, KEY_LAST_SCOPE)? {
-        Some(v) if !v.trim().is_empty() => v,
-        _ => return Ok((String::new(), Vec::new())),
-    };
-    let parsed: LastScopeStored = serde_json::from_str(&raw).unwrap_or(LastScopeStored {
-        mode: String::new(),
-        ids: Vec::new(),
-    });
-    let mode = parsed.mode.trim().to_lowercase();
-    let ids: Vec<String> = parsed
-        .ids
-        .into_iter()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-    Ok((mode, ids))
-}
-
-pub fn save_last_scope(
-    conn: &Connection,
-    mode: &str,
-    ids: &[String],
-) -> Result<(String, Vec<String>), String> {
-    let mode = mode.trim().to_lowercase();
-    let mode = if mode == "selected" { "selected" } else { "all" };
-    let cleaned: Vec<String> = ids
-        .iter()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-    let payload = LastScopeStored {
-        mode: mode.to_string(),
-        ids: if mode == "selected" {
-            cleaned.clone()
-        } else {
-            Vec::new()
-        },
-    };
-    db::set_setting(
-        conn,
-        KEY_LAST_SCOPE,
-        &serde_json::to_string(&payload).unwrap_or_else(|_| "{}".into()),
-    )?;
-    Ok((payload.mode, payload.ids))
-}
-
 /// 供后台定时器调用：若已到点且本日/本周未跑，则执行对应任务。
 pub fn tick(conn: &Connection) -> Result<Vec<WhistleJobResult>, String> {
     ensure_schema(conn)?;
@@ -320,7 +263,7 @@ pub fn tick(conn: &Connection) -> Result<Vec<WhistleJobResult>, String> {
         if let Ok(t) = parse_hhmm(&schedule.daily_time) {
             let already = schedule.last_daily_run.as_deref() == Some(today.as_str());
             if !already && now.time() >= t {
-                match run_job(conn, "daily", "scheduler", None, None) {
+                match run_job(conn, "daily", "scheduler", None) {
                     Ok(job) => out.push(job),
                     Err(e) => {
                         // 失败也记一次，避免同一分钟反复重试打爆；允许用户手动再跑
@@ -348,7 +291,7 @@ pub fn tick(conn: &Connection) -> Result<Vec<WhistleJobResult>, String> {
             let key = week_key_for(now.date_naive());
             let already = schedule.last_weekly_run.as_deref() == Some(key.as_str());
             if dow_ok && !already && now.time() >= t {
-                match run_job(conn, "weekly", "scheduler", None, None) {
+                match run_job(conn, "weekly", "scheduler", None) {
                     Ok(job) => out.push(job),
                     Err(e) => {
                         let _ = db::set_setting(conn, KEY_LAST_WEEKLY, &key);
@@ -377,26 +320,12 @@ pub fn run_job(
     kind: &str,
     actor: &str,
     partner_ids: Option<Vec<String>>,
-    on_date: Option<String>,
 ) -> Result<WhistleJobResult, String> {
     ensure_schema(conn)?;
     let kind = kind.trim().to_lowercase();
     if kind != "daily" && kind != "weekly" {
         return Err("kind 仅支持 daily 或 weekly".into());
     }
-
-    let today = Local::now().date_naive();
-    let as_of = parse_on_date(on_date.as_deref(), today)?;
-    let dated = on_date
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .is_some();
-    let window = if dated {
-        crate::baidu_search::SearchWindow::calendar_for(&kind, as_of)
-    } else {
-        crate::baidu_search::SearchWindow::from_job_kind(&kind)
-    };
 
     let ids = match partner_ids {
         Some(v) => v,
@@ -407,69 +336,54 @@ pub fn run_job(
     } else {
         Some(ids.as_slice())
     };
-    // 定时任务推进游标轮转；手动指定日期/机构从名单头开始且不改游标，避免把排程打乱。
-    let persist_cursor = actor == "scheduler" && !dated;
-    if actor != "scheduler" {
-        let mode = if ids.is_empty() { "all" } else { "selected" };
-        let _ = save_last_scope(conn, mode, &ids);
-    }
-    let batch =
-        pipeline::run_whistle_batch_scoped(conn, false, actor, id_ref, persist_cursor, window)?;
-    let report = build_and_save_report(conn, &kind, &batch, actor, as_of)?;
+    let window = crate::tavily::SearchWindow::from_job_kind(&kind);
+    let batch = pipeline::run_whistle_batch_scoped(conn, false, actor, id_ref, true, window)?;
+    let report = build_and_save_report(conn, &kind, &batch, actor)?;
 
-    if !dated || as_of == today {
-        if kind == "daily" {
-            db::set_setting(conn, KEY_LAST_DAILY, &today.to_string())?;
-        } else {
-            db::set_setting(conn, KEY_LAST_WEEKLY, &week_key_for(today))?;
-        }
+    let now = Local::now();
+    if kind == "daily" {
+        db::set_setting(
+            conn,
+            KEY_LAST_DAILY,
+            &now.date_naive().to_string(),
+        )?;
+    } else {
+        db::set_setting(conn, KEY_LAST_WEEKLY, &week_key_for(now.date_naive()))?;
     }
 
     Ok(WhistleJobResult { kind, batch, report })
 }
 
-fn parse_on_date(raw: Option<&str>, today: NaiveDate) -> Result<NaiveDate, String> {
-    match raw.map(str::trim).filter(|s| !s.is_empty()) {
-        None => Ok(today),
-        Some(s) => NaiveDate::parse_from_str(s, "%Y-%m-%d")
-            .map_err(|_| format!("日期需为 YYYY-MM-DD，收到: {s}")),
-    }
-}
-
-fn ymd_prefix(raw: &str) -> Option<&str> {
-    let s = raw.trim();
-    let day = s.get(0..10)?;
-    if NaiveDate::parse_from_str(day, "%Y-%m-%d").is_ok() {
-        Some(day)
-    } else {
-        None
-    }
-}
-
 fn clue_date_key(c: &RiskClue) -> String {
-    ymd_prefix(&c.event_date)
-        .or_else(|| ymd_prefix(&c.created_at))
-        .unwrap_or("")
-        .to_string()
+    if c.created_at.len() >= 10 {
+        c.created_at[..10].to_string()
+    } else if c.event_date.len() >= 10 {
+        c.event_date[..10].to_string()
+    } else {
+        c.event_date.clone()
+    }
 }
 
-fn filter_clues_for_period(
-    all: &[RiskClue],
-    kind: &str,
-    as_of: NaiveDate,
-) -> (String, Vec<RiskClue>) {
+fn filter_clues_for_period(all: &[RiskClue], kind: &str) -> (String, Vec<RiskClue>) {
+    let today = Local::now().date_naive();
     if kind == "daily" {
-        let key = as_of.to_string();
+        let key = today.to_string();
         let mut list: Vec<_> = all
             .iter()
-            .filter(|c| clue_date_key(c) == key)
+            .filter(|c| {
+                clue_date_key(c) == key
+                    || (c.level <= 2
+                        && (c.status.contains("待")
+                            || c.status.contains("复核")
+                            || c.status.contains("跟踪")))
+            })
             .cloned()
             .collect();
         list.sort_by(|a, b| a.level.cmp(&b.level).then(b.event_date.cmp(&a.event_date)));
         list.dedup_by(|a, b| a.id == b.id);
         (key, list)
     } else {
-        let (start, end) = week_bounds(as_of);
+        let (start, end) = week_bounds(today);
         let period = format!("{start} ~ {end}");
         let mut list: Vec<_> = all
             .iter()
@@ -484,35 +398,14 @@ fn filter_clues_for_period(
     }
 }
 
-fn keep_period_clue(c: &RiskClue) -> bool {
-    if c.source_system == "baidu" || c.source_system == "tavily" {
-        crate::baidu_search::keep_search_hit(&c.title, &c.summary)
-    } else {
-        true
-    }
-}
-
 fn build_and_save_report(
     conn: &Connection,
     kind: &str,
     batch: &BatchResult,
     actor: &str,
-    as_of: NaiveDate,
 ) -> Result<WhistleReport, String> {
-    let period = if kind == "daily" {
-        as_of.to_string()
-    } else {
-        let (start, end) = week_bounds(as_of);
-        format!("{start} ~ {end}")
-    };
-    // 报告只展示本次跑批命中的线索，不把库里历史 L1/L2 或其他机构的旧稿拼进来。
-    let mut clues: Vec<RiskClue> = batch
-        .clues
-        .iter()
-        .filter(|c| keep_period_clue(c))
-        .cloned()
-        .collect();
-    clues.sort_by(|a, b| a.level.cmp(&b.level).then(b.event_date.cmp(&a.event_date)));
+    let all = db::list_clues(conn)?;
+    let (period, clues) = filter_clues_for_period(&all, kind);
 
     let level1 = clues.iter().filter(|c| c.level == 1).count() as u32;
     let level2 = clues.iter().filter(|c| c.level == 2).count() as u32;
@@ -526,7 +419,7 @@ fn build_and_save_report(
     };
 
     let summary = format!(
-        "本次跑批命中 {} 条（L1={} / L2={} / L3={} / L4={}）；扫描 {} 家机构，其中新增 {} 条。",
+        "本期线索 {} 条（L1={} / L2={} / L3={} / L4={}）；本次跑批扫描 {} 家机构，新增线索 {} 条。",
         clues.len(),
         level1,
         level2,
@@ -546,7 +439,6 @@ fn build_and_save_report(
         "level2": batch.level2,
         "sourceErrors": batch.source_errors,
         "scopeNote": batch.scope_note,
-        "searchQueries": batch.search_queries,
         "clues": clues.iter().take(80).map(|c| serde_json::json!({
             "id": c.id,
             "partner": c.partner,
@@ -634,16 +526,6 @@ fn render_markdown(
         batch.level1,
         batch.level2
     ));
-    if !batch.search_queries.is_empty() {
-        md.push_str("### 全网检索词\n\n");
-        for (i, q) in batch.search_queries.iter().enumerate() {
-            md.push_str(&format!("{}. `{}`\n", i + 1, q.replace('`', "'")));
-        }
-        md.push('\n');
-    } else {
-        md.push_str("### 全网检索词\n\n未发出检索（请检查是否已配置并启用百度千帆搜索）。\n\n");
-    }
-
     if !batch.source_errors.is_empty() {
         md.push_str("### 数据源提示\n\n");
         for e in batch.source_errors.iter().take(10) {
@@ -820,44 +702,5 @@ mod tests {
         let (s, e) = week_bounds(d);
         assert_eq!(s.weekday(), Weekday::Mon);
         assert_eq!(e.weekday(), Weekday::Sun);
-        assert_eq!(
-            parse_on_date(Some("2026-08-12"), d).unwrap().to_string(),
-            "2026-08-12"
-        );
-        assert!(parse_on_date(Some("2026/08/12"), d).is_err());
-        assert_eq!(parse_on_date(None, d).unwrap(), d);
-    }
-
-    #[test]
-    fn clue_date_key_skips_undated_without_panic() {
-        let mut c = RiskClue {
-            id: "x".into(),
-            partner_id: "p".into(),
-            partner: "桔子数科".into(),
-            partner_type: "loan".into(),
-            level: 3,
-            title: "爆雷".into(),
-            summary: String::new(),
-            event_date: "日期不详".into(),
-            owner: String::new(),
-            progress: 0,
-            status: "跟踪中".into(),
-            source_system: "baidu".into(),
-            source_url: String::new(),
-            credibility: "C".into(),
-            rule_id: String::new(),
-            rule_set_version: String::new(),
-            legal_basis: String::new(),
-            denoise_status: "new".into(),
-            related_party_flag: false,
-            evidence_hash: "h".into(),
-            created_at: "2026-07-02 01:00:00".into(),
-        };
-        assert_eq!(clue_date_key(&c), "2026-07-02");
-        c.created_at.clear();
-        assert_eq!(clue_date_key(&c), "");
-        let as_of = NaiveDate::from_ymd_opt(2026, 7, 2).unwrap();
-        let (_, list) = filter_clues_for_period(&[c], "weekly", as_of);
-        assert!(list.is_empty());
     }
 }

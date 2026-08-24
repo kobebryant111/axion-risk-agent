@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
 import {
-  getBaiduSearchSettings,
   getEnterpriseMcpSettings,
   getLlmConfig,
-  saveBaiduSearchSettings,
+  getTavilySettings,
   saveEnterpriseMcpSettings,
   saveLlmConfig,
-  testBaiduSearch,
+  saveTavilySettings,
   testEnterpriseMcp,
   testLlmConnection,
+  testTavily,
 } from "../api";
 import type {
   EnterpriseMcpSettings,
   LlmConfigPublic,
-  BaiduSearchSettings,
+  TavilySettings,
 } from "../data/types";
 
 export function SettingsPage() {
@@ -27,10 +27,10 @@ export function SettingsPage() {
   const [qccKey, setQccKey] = useState("");
   const [tycEnabled, setTycEnabled] = useState(false);
   const [tycKey, setTycKey] = useState("");
-  const [search, setSearch] = useState<BaiduSearchSettings | null>(null);
-  const [searchEnabled, setSearchEnabled] = useState(false);
-  const [searchKey, setSearchKey] = useState("");
-  const [searchInBatch, setSearchInBatch] = useState(true);
+  const [tav, setTav] = useState<TavilySettings | null>(null);
+  const [tavilyEnabled, setTavilyEnabled] = useState(false);
+  const [tavilyKey, setTavilyKey] = useState("");
+  const [tavilyInBatch, setTavilyInBatch] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -57,11 +57,11 @@ export function SettingsPage() {
         setMsg(e instanceof Error ? e.message : String(e));
       }
       try {
-        const t = await getBaiduSearchSettings();
-        setSearch(t);
-        setSearchEnabled(!!t.enabled);
-        setSearchKey(t.hasApiKey ? "********" : "");
-        setSearchInBatch(t.useInBatch !== false);
+        const t = await getTavilySettings();
+        setTav(t);
+        setTavilyEnabled(!!t.enabled);
+        setTavilyKey(t.hasApiKey ? "********" : "");
+        setTavilyInBatch(t.useInBatch !== false);
       } catch (e) {
         setMsg(e instanceof Error ? e.message : String(e));
       }
@@ -89,17 +89,17 @@ export function SettingsPage() {
       setEnt(e);
       setQccKey(e.qccHasApiKey ? "********" : "");
       setTycKey(e.tycHasApiKey ? "********" : "");
-      const t = await saveBaiduSearchSettings({
-        enabled: searchEnabled,
-        useInBatch: searchInBatch,
-        apiKey: searchKey === "********" ? undefined : searchKey,
+      const t = await saveTavilySettings({
+        enabled: tavilyEnabled,
+        useInBatch: tavilyInBatch,
+        apiKey: tavilyKey === "********" ? undefined : tavilyKey,
       });
-      setSearch(t);
-      setSearchKey(t.hasApiKey ? "********" : "");
+      setTav(t);
+      setTavilyKey(t.hasApiKey ? "********" : "");
       setMsg(
         [
           next.ready ? "LLM 就绪" : "LLM 未就绪",
-          t.ready ? "百度搜索就绪" : null,
+          t.ready ? "Tavily 就绪" : null,
           e.qccReady || e.tycReady ? "企业 MCP 已配置" : null,
         ]
           .filter(Boolean)
@@ -160,23 +160,23 @@ export function SettingsPage() {
     }
   }
 
-  async function testSearchConn() {
+  async function testTavilyConn() {
     setBusy(true);
     setMsg(null);
     try {
-      await saveBaiduSearchSettings({
+      await saveTavilySettings({
         enabled: true,
-        useInBatch: searchInBatch,
-        apiKey: searchKey === "********" ? undefined : searchKey,
+        useInBatch: tavilyInBatch,
+        apiKey: tavilyKey === "********" ? undefined : tavilyKey,
       });
-      setSearchEnabled(true);
-      const res = await testBaiduSearch();
+      setTavilyEnabled(true);
+      const res = await testTavily();
       setMsg(res.message);
-      const t = await getBaiduSearchSettings();
-      setSearch(t);
-      setSearchEnabled(t.enabled);
-      setSearchInBatch(t.useInBatch);
-      setSearchKey(t.hasApiKey ? "********" : "");
+      const t = await getTavilySettings();
+      setTav(t);
+      setTavilyEnabled(t.enabled);
+      setTavilyInBatch(t.useInBatch);
+      setTavilyKey(t.hasApiKey ? "********" : "");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
     } finally {
@@ -191,7 +191,7 @@ export function SettingsPage() {
         <div className="text-xs text-axiom-muted">
           {cfg?.ready ? "LLM 就绪" : "LLM 未就绪"}
           {cfg?.hasApiKey ? " · Key 已配置" : ""}
-          {search?.ready ? " · 百度搜索就绪" : ""}
+          {tav?.ready ? " · Tavily 就绪" : ""}
           {ent?.qccReady ? " · 企查查就绪" : ""}
           {ent?.tycReady ? " · 天眼查就绪" : ""}
         </div>
@@ -271,18 +271,19 @@ export function SettingsPage() {
 
       <section className="card space-y-4 p-6">
         <div>
-          <div className="text-base font-semibold">百度千帆搜索</div>
+          <div className="text-base font-semibold">Tavily 全网搜索</div>
           <p className="mt-1 text-xs leading-relaxed text-axiom-muted">
-            接入后，风险吹哨与准入用百度索引检索国内公开网页，问鉴控可用
-            baidu_web_search。单次跑批 / 问鉴控一轮最多 2 次调用。手动选日期时按网页
-            page_time 过滤自然日。Key 为千帆 API Key，本地加密。获取：
+            接入后，风险吹哨跑批可真实检索公开网页（新闻/处罚/投诉等），问鉴控也可用
+            tavily_web_search。按 Tavily 次数计费；单次跑批 / 问鉴控一轮最多 2
+            次调用（3 次以下）。跑批会把多家机构名打包进少量 query 一起搜；日报检索最近 24 小时，周报最近 7 天（Tavily time_range，滚动窗口不是自然日）。装不下的下轮继续。跑批时若已配置
+            LLM，会对 Tavily 结果做 AI 研判与四级分级（失败则回退规则）。Key 本地加密。获取：
             <a
               className="ml-1 text-axiom-accent underline"
-              href="https://console.bce.baidu.com/qianfan/ais/console/onlineSearch"
+              href="https://app.tavily.com/home"
               target="_blank"
               rel="noreferrer"
             >
-              千帆·AI 搜索控制台
+              app.tavily.com
             </a>
             。
           </p>
@@ -292,33 +293,33 @@ export function SettingsPage() {
           <div className="text-sm font-semibold">启用</div>
           <button
             type="button"
-            onClick={() => setSearchEnabled((v) => !v)}
+            onClick={() => setTavilyEnabled((v) => !v)}
             className={`rounded-full px-4 py-2 text-sm font-semibold ${
-              searchEnabled
+              tavilyEnabled
                 ? "bg-emerald-100 text-emerald-700"
                 : "bg-slate-100 text-slate-500"
             }`}
           >
-            {searchEnabled ? "已启用" : "未启用"}
+            {tavilyEnabled ? "已启用" : "未启用"}
           </button>
         </div>
 
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            checked={searchInBatch}
-            onChange={(e) => setSearchInBatch(e.target.checked)}
+            checked={tavilyInBatch}
+            onChange={(e) => setTavilyInBatch(e.target.checked)}
           />
-          在风险吹哨跑批中启用全网搜索（最多 2 次查询）
+          在风险吹哨跑批中启用全网搜索（多家打包进最多 2 次查询）
         </label>
 
         <label className="block">
           <div className="mb-1 text-xs font-medium text-axiom-muted">API Key</div>
           <input
             type="password"
-            value={searchKey}
-            onChange={(e) => setSearchKey(e.target.value)}
-            placeholder="bce-v3/..."
+            value={tavilyKey}
+            onChange={(e) => setTavilyKey(e.target.value)}
+            placeholder="tvly-..."
             className="w-full rounded-2xl border border-black/[0.06] px-4 py-2.5 text-sm outline-none focus:border-axiom-accent"
           />
         </label>
@@ -330,12 +331,12 @@ export function SettingsPage() {
             onClick={() => void save()}
             className="rounded-full bg-axiom-accent px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
           >
-            保存百度搜索
+            保存 Tavily
           </button>
           <button
             type="button"
             disabled={busy}
-            onClick={() => void testSearchConn()}
+            onClick={() => void testTavilyConn()}
             className="rounded-full bg-axiom-soft px-5 py-2.5 text-sm font-semibold text-axiom-accent disabled:opacity-50"
           >
             测试连通
@@ -347,7 +348,8 @@ export function SettingsPage() {
         <div>
           <div className="text-base font-semibold">企业数据 MCP</div>
           <p className="mt-1 text-xs leading-relaxed text-axiom-muted">
-            接入企查查 / 天眼查官方 MCP 后，鉴控对话可查询工商与风险等真实数据（按对方积分/额度计费）。全网舆情请用上方百度搜索；工商司法核验请用此处。Key 本地加密存储。获取：
+            接入企查查 / 天眼查官方 MCP 后，鉴控对话可查询工商与风险等真实数据（按对方积分/额度计费）。全网舆情请用上方
+            Tavily；工商司法核验请用此处。Key 本地加密存储。获取：
             <a
               className="mx-1 text-axiom-accent underline"
               href="https://agent.qcc.com/guide"

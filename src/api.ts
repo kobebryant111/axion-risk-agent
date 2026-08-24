@@ -11,9 +11,9 @@ import type {
   EnterpriseMcpSettings,
   EnterpriseMcpSettingsSave,
   EnterpriseMcpTestResult,
-  BaiduSearchSettings,
-  BaiduSearchSettingsSave,
-  BaiduSearchTestResult,
+  TavilySettings,
+  TavilySettingsSave,
+  TavilyTestResult,
   FinanceAnalyzeRequest,
   FinanceBatchResult,
   FinanceCsvImportResult,
@@ -46,16 +46,6 @@ import { emptyDashboard } from "./data/empty";
 const isTauri = () =>
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-function invokeErrorMessage(e: unknown): string {
-  if (typeof e === "string" && e.trim()) return e;
-  if (e instanceof Error && e.message.trim()) return e.message;
-  if (e && typeof e === "object" && "message" in e) {
-    const m = (e as { message: unknown }).message;
-    if (typeof m === "string" && m.trim()) return m;
-  }
-  return e == null ? "未知错误" : String(e);
-}
-
 async function tryInvokeSoft<T>(
   cmd: string,
   args?: Record<string, unknown>,
@@ -66,21 +56,6 @@ async function tryInvokeSoft<T>(
   } catch (e) {
     console.warn(`invoke ${cmd} failed`, e);
     return null;
-  }
-}
-
-/** 用户点的按钮：失败时抛出后端原文，不要伪装成「需桌面端」。 */
-async function invokeRequired<T>(
-  cmd: string,
-  args?: Record<string, unknown>,
-): Promise<T> {
-  if (!isTauri()) {
-    throw new Error("当前窗口不是桌面端，请用 npm run tauri dev 打开应用");
-  }
-  try {
-    return await invoke<T>(cmd, args);
-  } catch (e) {
-    throw new Error(invokeErrorMessage(e));
   }
 }
 
@@ -240,17 +215,8 @@ export async function getWhistleSchedule(): Promise<WhistleSchedule> {
       nextWeeklyHint: "需桌面端启用定时",
       partnerIds: [],
       scopeHint: "需桌面端",
-      lastScopeMode: "",
-      lastScopeIds: [],
     }
   );
-}
-
-export async function saveWhistleLastScope(
-  mode: "all" | "selected",
-  ids: string[] = [],
-): Promise<void> {
-  await tryInvokeSoft("save_whistle_last_scope", { mode, ids });
 }
 
 export async function saveWhistleSchedule(
@@ -266,13 +232,13 @@ export async function saveWhistleSchedule(
 export async function runWhistleJob(
   kind: "daily" | "weekly",
   partnerIds?: string[],
-  onDate?: string,
 ): Promise<WhistleJobResult> {
-  return invokeRequired<WhistleJobResult>("run_whistle_job", {
+  const res = await tryInvokeSoft<WhistleJobResult>("run_whistle_job", {
     kind,
     partnerIds,
-    onDate,
   });
+  if (!res) throw new Error("执行日/周报任务需桌面端");
+  return res;
 }
 
 export async function listWhistleReports(limit = 30): Promise<WhistleReport[]> {
@@ -313,9 +279,9 @@ export async function testEnterpriseMcp(
   return res;
 }
 
-export async function getBaiduSearchSettings(): Promise<BaiduSearchSettings> {
+export async function getTavilySettings(): Promise<TavilySettings> {
   return (
-    (await tryInvokeSoft<BaiduSearchSettings>("get_baidu_search_settings")) ?? {
+    (await tryInvokeSoft<TavilySettings>("get_tavily_settings")) ?? {
       enabled: false,
       hasApiKey: false,
       ready: false,
@@ -324,19 +290,19 @@ export async function getBaiduSearchSettings(): Promise<BaiduSearchSettings> {
   );
 }
 
-export async function saveBaiduSearchSettings(
-  settings: BaiduSearchSettingsSave,
-): Promise<BaiduSearchSettings> {
-  const res = await tryInvokeSoft<BaiduSearchSettings>("save_baidu_search_settings", {
+export async function saveTavilySettings(
+  settings: TavilySettingsSave,
+): Promise<TavilySettings> {
+  const res = await tryInvokeSoft<TavilySettings>("save_tavily_settings", {
     settings,
   });
-  if (!res) throw new Error("保存百度搜索设置需桌面端");
+  if (!res) throw new Error("保存 Tavily 设置需桌面端");
   return res;
 }
 
-export async function testBaiduSearch(): Promise<BaiduSearchTestResult> {
-  const res = await tryInvokeSoft<BaiduSearchTestResult>("test_baidu_search");
-  if (!res) throw new Error("测试百度搜索需桌面端");
+export async function testTavily(): Promise<TavilyTestResult> {
+  const res = await tryInvokeSoft<TavilyTestResult>("test_tavily");
+  if (!res) throw new Error("测试 Tavily 需桌面端");
   return res;
 }
 

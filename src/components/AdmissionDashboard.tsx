@@ -461,38 +461,6 @@ export function AdmissionDashboard({ review, onExport }: Props) {
         </div>
       </div>
 
-      <div className="card p-5">
-        <div className="mb-2 text-sm font-semibold">本次取证</div>
-        <p className="mb-3 text-[11px] leading-relaxed text-axiom-muted">
-          「企查查 / 天眼查」出现在这里才算工商 MCP 打通；写成「未完成」就是接口失败。AI
-          报告里的「材料未提供工商」不能当作企查查失败。
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {[
-            { key: "全网搜", ok: "全网搜", fail: "全网搜未完成" },
-            { key: "企查查", ok: "企查查", fail: "企查查未完成" },
-            { key: "天眼查", ok: "天眼查", fail: "天眼查未完成" },
-          ].map((ch) => {
-            const ok = sources.includes(ch.ok);
-            const fail = sources.includes(ch.fail);
-            const label = ok ? "已接入" : fail ? "未完成" : "未使用";
-            const tone = ok
-              ? "bg-emerald-50 text-emerald-800"
-              : fail
-                ? "bg-red-50 text-red-700"
-                : "bg-black/[0.04] text-axiom-muted";
-            return (
-              <span
-                key={ch.key}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${tone}`}
-              >
-                {ch.key} · {label}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-
       {/* 图表面板 */}
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card flex flex-col items-center p-5">

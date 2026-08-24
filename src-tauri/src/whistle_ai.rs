@@ -1,4 +1,4 @@
-//! 风险吹哨：对全网搜结果做 AI 研判与分级。
+//! 风险吹哨：对 Tavily 全网搜结果做 AI 研判与分级。
 
 use crate::llm::{self, ChatMessage, LlmConfig};
 use crate::models::Partner;
@@ -53,7 +53,7 @@ pub fn grade_tavily_hits(
     if !cfg.is_ready() {
         return (
             HashMap::new(),
-            Some("LLM 未就绪：全网搜结果将回退规则定级".into()),
+            Some("LLM 未就绪：Tavily 结果将回退规则定级".into()),
         );
     }
 

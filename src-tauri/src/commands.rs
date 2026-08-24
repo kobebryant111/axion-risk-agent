@@ -282,7 +282,7 @@ pub fn run_whistle_batch(
             actor,
             partner_ids.as_deref(),
             !is_trial,
-            crate::baidu_search::SearchWindow::LastDay,
+            crate::tavily::SearchWindow::LastDay,
         )
     })
 }
@@ -322,35 +322,17 @@ pub fn save_whistle_schedule(
     })
 }
 
-#[tauri::command]
-pub fn save_whistle_last_scope(
-    state: State<'_, AppState>,
-    mode: String,
-    ids: Option<Vec<String>>,
-) -> Result<WhistleSchedule, String> {
-    with_db(&state, |conn| {
-        crate::whistle_reports::save_last_scope(
-            conn,
-            &mode,
-            ids.as_deref().unwrap_or(&[]),
-        )?;
-        crate::whistle_reports::load_schedule(conn)
-    })
-}
-
 /// 立即执行日批/周批：跑监测并生成对应报告。kind = daily | weekly
-/// `on_date` 为 YYYY-MM-DD 时按自然日检索（周报为该日所在周一至周日），不推进定时游标。
 /// 放到 blocking 线程，避免同步占用命令线程导致界面卡住、看不到「生成中」。
 #[tauri::command]
 pub async fn run_whistle_job(
     kind: String,
     partner_ids: Option<Vec<String>>,
-    on_date: Option<String>,
 ) -> Result<WhistleJobResult, String> {
     let db_path = crate::db::default_db_path();
     tauri::async_runtime::spawn_blocking(move || {
         let conn = crate::db::open(&db_path)?;
-        crate::whistle_reports::run_job(&conn, &kind, "user", partner_ids, on_date)
+        crate::whistle_reports::run_job(&conn, &kind, "user", partner_ids)
     })
     .await
     .map_err(|e| format!("跑批任务异常: {e}"))?
@@ -367,26 +349,26 @@ pub fn list_whistle_reports(
 }
 
 #[tauri::command]
-pub fn get_baidu_search_settings(state: State<'_, AppState>) -> Result<BaiduSearchSettings, String> {
+pub fn get_tavily_settings(state: State<'_, AppState>) -> Result<TavilySettings, String> {
     with_db(&state, |conn| {
-        let cfg = crate::baidu_search::load_config(conn)?;
-        Ok(crate::baidu_search::to_public(&cfg))
+        let cfg = crate::tavily::load_config(conn)?;
+        Ok(crate::tavily::to_public(&cfg))
     })
 }
 
 #[tauri::command]
-pub fn save_baidu_search_settings(
+pub fn save_tavily_settings(
     state: State<'_, AppState>,
-    settings: BaiduSearchSettingsSave,
-) -> Result<BaiduSearchSettings, String> {
+    settings: TavilySettingsSave,
+) -> Result<TavilySettings, String> {
     with_db(&state, |conn| {
-        let view = crate::baidu_search::save_config(conn, &settings)?;
+        let view = crate::tavily::save_config(conn, &settings)?;
         db::insert_audit(
             conn,
             &AuditLog {
                 id: Uuid::new_v4().to_string(),
                 actor: "user".into(),
-                action: "baidu_search_settings_save".into(),
+                action: "tavily_settings_save".into(),
                 target: "app_settings".into(),
                 detail: format!(
                     "enabled={} ready={} useInBatch={}",
@@ -400,9 +382,9 @@ pub fn save_baidu_search_settings(
 }
 
 #[tauri::command]
-pub fn test_baidu_search(state: State<'_, AppState>) -> Result<BaiduSearchTestResult, String> {
-    let cfg = with_db(&state, crate::baidu_search::load_config)?;
-    Ok(crate::baidu_search::test_connection(&cfg))
+pub fn test_tavily(state: State<'_, AppState>) -> Result<TavilyTestResult, String> {
+    let cfg = with_db(&state, crate::tavily::load_config)?;
+    Ok(crate::tavily::test_connection(&cfg))
 }
 
 #[tauri::command]

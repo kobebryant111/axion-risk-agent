@@ -3,8 +3,7 @@ use crate::llm;
 use crate::models::{AuditLog, BatchResult, Partner, RiskClue};
 use crate::rules::{self, EffectiveRule, GradeResult};
 use crate::sources::{self, dual_match, evidence_hash, RawHit};
-use crate::baidu_search;
-use crate::baidu_search::SearchWindow;
+use crate::tavily;
 use crate::whistle_ai::{self, AiGrade};
 use rusqlite::Connection;
 use std::collections::HashMap;
@@ -21,18 +20,18 @@ pub fn run_whistle_batch(
         actor,
         None,
         true,
-        SearchWindow::LastDay,
+        tavily::SearchWindow::LastDay,
     )
 }
 
-/// `partner_ids` 为空则扫描全部；`persist_cursor` 为 false 时不推进搜索轮转游标。
+/// `partner_ids` 为空则扫描全部；`persist_cursor` 为 false 时不推进 Tavily 轮转游标。
 pub fn run_whistle_batch_scoped(
     conn: &Connection,
     live_heimao: bool,
     actor: &str,
     partner_ids: Option<&[String]>,
     persist_cursor: bool,
-    window: SearchWindow,
+    window: tavily::SearchWindow,
 ) -> Result<BatchResult, String> {
     let _ = live_heimao;
     let all = db::list_partners(conn)?;
@@ -58,38 +57,38 @@ pub fn run_whistle_batch_scoped(
         model: String::new(),
         enabled: false,
     });
-    let search_cfg = baidu_search::load_config(conn).unwrap_or(baidu_search::BaiduSearchConfig {
+    let tavily_cfg = tavily::load_config(conn).unwrap_or(tavily::TavilyConfig {
         enabled: false,
         api_key: String::new(),
         use_in_batch: true,
     });
 
-    // 1) 百度搜索：1 家两句问句；多家每家一句，不用 OR
-    let bundled = if search_cfg.batch_ready() {
-        Some(baidu_search::search_partners_bundled(
+    // 1) Tavily：打包检索（最多 2 次 HTTP；日报最近 24h / 周报最近 7 天）
+    let bundled = if tavily_cfg.batch_ready() {
+        Some(tavily::search_partners_bundled(
             conn,
-            &search_cfg.api_key,
+            &tavily_cfg.api_key,
             &partners,
-            10,
+            5,
             persist_cursor,
-            &window,
+            window,
         )?)
     } else {
         None
     };
-    let search_calls = bundled.as_ref().map(|b| b.calls).unwrap_or(0);
-    let search_covered = bundled.as_ref().map(|b| b.partners_covered).unwrap_or(0);
+    let tavily_calls = bundled.as_ref().map(|b| b.calls).unwrap_or(0);
+    let tavily_covered = bundled.as_ref().map(|b| b.partners_covered).unwrap_or(0);
 
-    // 2) AI：对全网搜命中做研判分级（未配置/失败则空，后面回退规则）
+    // 2) AI：对 Tavily 命中做研判分级（未配置/失败则空，后面回退规则）
     let partners_by_id: HashMap<String, &Partner> =
         partners.iter().map(|p| (p.id.clone(), p)).collect();
     let empty_hits = HashMap::new();
-    let web_hits = bundled
+    let tavily_hits = bundled
         .as_ref()
         .map(|b| &b.hits_by_partner)
         .unwrap_or(&empty_hits);
-    let (ai_grades, ai_note) = if bundled.is_some() && !web_hits.is_empty() {
-        whistle_ai::grade_tavily_hits(&llm_cfg, &partners_by_id, web_hits)
+    let (ai_grades, ai_note) = if bundled.is_some() && !tavily_hits.is_empty() {
+        whistle_ai::grade_tavily_hits(&llm_cfg, &partners_by_id, tavily_hits)
     } else {
         (HashMap::new(), None)
     };
@@ -113,37 +112,26 @@ pub fn run_whistle_batch_scoped(
     for partner in &partners {
         let mut hits = Vec::new();
 
-        if let Some(hits_web) = web_hits.get(&partner.id) {
-            hits.extend(hits_web.iter().cloned());
+        if let Some(tav_hits) = tavily_hits.get(&partner.id) {
+            hits.extend(tav_hits.iter().cloned());
         }
 
         raw_hits += hits.len() as u32;
 
         for hit in hits {
-            let clue = if hit.source_id == "baidu" || hit.source_id == "tavily" {
+            let clue = if hit.source_id == "tavily" {
                 let key = whistle_ai::item_key(&partner.id, &hit);
-                let text = format!("{} {} {}", hit.title, hit.summary, hit.body);
-                if !baidu_search::keep_search_hit(&hit.title, &text) {
-                    continue;
-                }
                 if let Some(ai) = ai_grades.get(&key) {
-                    if !ai.relevant {
-                        continue;
-                    }
                     clue_from_ai(partner, &hit, ai)
-                        .or_else(|| process_hit(partner, &hit, &risk_keywords, &rules))
-                        .or_else(|| Some(clue_from_unconfirmed_hit(partner, &hit)))
                 } else {
+                    // AI 未覆盖该条：回退规则（仍需双条件匹配）
                     process_hit(partner, &hit, &risk_keywords, &rules)
-                        .or_else(|| Some(clue_from_unconfirmed_hit(partner, &hit)))
                 }
             } else {
                 process_hit(partner, &hit, &risk_keywords, &rules)
             };
-            let Some(clue) = clue else {
-                continue;
-            };
 
+            let Some(clue) = clue else { continue };
             matched += 1;
             match db::upsert_clue(conn, &clue)? {
                 "new" => {
@@ -156,35 +144,14 @@ pub fn run_whistle_batch_scoped(
                     }
                     new_clues.push(clue);
                 }
-                "repeat" => {
-                    let mut shown = clue;
-                    shown.denoise_status = "repeat".into();
-                    if let Ok(Some(id)) = db::clue_id_by_evidence_hash(conn, &shown.evidence_hash) {
-                        shown.id = id;
-                    }
-                    new_clues.push(shown);
-                }
-                _ => {
-                    new_clues.push(clue);
-                }
+                "repeat" => {}
+                _ => {}
             }
         }
     }
 
-    let search_cap = if partners.len() <= 1 {
-        baidu_search::MAX_CALLS_PER_OPERATION
-    } else {
-        baidu_search::MAX_CALLS_PER_BATCH
-    };
-    let mut scope_note = scope_note;
-    if search_calls > 0 {
-        scope_note = format!(
-            "{scope_note} · 全网检索{search_calls}次、覆盖{search_covered}家"
-        );
-    }
-
     let detail = format!(
-        "scope={} scanned={} raw={} matched={} upserted={} L1={} L2={} errors={} search={} window={} search_calls={}/{} search_partners={} ai_grade={} cursor={}",
+        "scope={} scanned={} raw={} matched={} upserted={} L1={} L2={} errors={} tavily={} window={} tavily_calls={}/{} tavily_partners={} ai_grade={} cursor={}",
         scope_note,
         partners.len(),
         raw_hits,
@@ -195,9 +162,9 @@ pub fn run_whistle_batch_scoped(
         source_errors.len(),
         if bundled.is_some() { "bundled" } else { "off" },
         window.hint(),
-        search_calls,
-        search_cap,
-        search_covered,
+        tavily_calls,
+        tavily::MAX_CALLS_PER_OPERATION,
+        tavily_covered,
         if ai_graded { "on" } else { "off" },
         if persist_cursor { "on" } else { "trial" }
     );
@@ -223,10 +190,6 @@ pub fn run_whistle_batch_scoped(
         source_errors,
         clues: new_clues,
         scope_note,
-        search_queries: bundled
-            .as_ref()
-            .map(|b| b.queries.clone())
-            .unwrap_or_default(),
     })
 }
 
@@ -256,43 +219,16 @@ fn filter_partners(
     Ok(filtered)
 }
 
-fn clue_from_unconfirmed_hit(partner: &Partner, hit: &RawHit) -> RiskClue {
-    let hash = evidence_hash(&hit.source_id, &hit.url, &hit.title, &hit.body);
-    RiskClue {
-        id: format!(
-            "W{}-{}",
-            chrono::Local::now().format("%m%d"),
-            &Uuid::new_v4().to_string()[..8]
-        ),
-        partner_id: partner.id.clone(),
-        partner: partner.name.clone(),
-        partner_type: partner.partner_type_label.clone(),
-        level: 4,
-        title: hit.title.clone(),
-        summary: format!("【检索命中】{}", hit.summary),
-        event_date: hit.event_time.clone(),
-        owner: "合作风控".into(),
-        progress: 0,
-        status: "跟踪中".into(),
-        source_system: hit.source_id.clone(),
-        source_url: hit.url.clone(),
-        credibility: hit.credibility.clone(),
-        rule_id: "HIT-KEEP".into(),
-        rule_set_version: "runtime".into(),
-        legal_basis: "待人工复核".into(),
-        denoise_status: "web_hit".into(),
-        related_party_flag: false,
-        evidence_hash: hash,
-        created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-    }
-}
-
 fn clue_from_ai(partner: &Partner, hit: &RawHit, ai: &AiGrade) -> Option<RiskClue> {
     if !ai.relevant || !(1..=4).contains(&ai.level) {
         return None;
     }
 
-    let level = ai.level;
+    let mut level = ai.level;
+    // 可信度 C 的网传信息：1/2 级降为 3，避免 AI 单独抬高未证实信息
+    if hit.credibility.eq_ignore_ascii_case("C") && level <= 2 {
+        level = 3;
+    }
 
     let summary = if ai.analysis.trim().is_empty() {
         format!("【AI·{}】{}", ai.risk_point, hit.summary)
@@ -345,7 +281,7 @@ fn process_hit(
     let (subject_terms, related_flag) = if let Some(rel) = &hit.related_party_term {
         (vec![rel.clone()], true)
     } else {
-        (crate::partners::expand_watch_terms(&partner.name, &partner.alias, &partner.lexicon), false)
+        (partner.lexicon.clone(), false)
     };
 
     let has_subject = subject_terms.iter().any(|t| text.contains(t.as_str()));
@@ -444,7 +380,7 @@ mod tests {
             "test",
             Some(&["not-exist".to_string()]),
             false,
-            crate::baidu_search::SearchWindow::LastDay,
+            crate::tavily::SearchWindow::LastDay,
         );
         assert!(miss.is_err());
 
@@ -454,7 +390,7 @@ mod tests {
             "test",
             Some(&[p.id.clone()]),
             false,
-            crate::baidu_search::SearchWindow::LastDay,
+            crate::tavily::SearchWindow::LastDay,
         )
         .unwrap();
         assert_eq!(only.partners_scanned, 1);

@@ -4,7 +4,6 @@ import {
   getWhistleSchedule,
   listWhistleReports,
   runWhistleJob,
-  saveWhistleLastScope,
   saveWhistleSchedule,
   updateClue,
 } from "../api";
@@ -23,7 +22,7 @@ import type {
   WhistleReport,
   WhistleSchedule,
 } from "../data/types";
-import { friendlySourceErrors, levelTone, resolveLiveClue, sourceLabel } from "../lib/whistleUi";
+import { friendlySourceErrors, levelTone, sourceLabel } from "../lib/whistleUi";
 
 type Props = {
   clues: RiskClue[];
@@ -41,54 +40,6 @@ const WEEKDAYS = [
   { v: 6, label: "周六" },
   { v: 7, label: "周日" },
 ];
-
-function todayYmd() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function ymdFromDate(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
-/** 该日所在周一至周日（与后端自然周一致） */
-function weekRangeHint(ymd: string) {
-  const [y, m, d] = ymd.split("-").map(Number);
-  if (!y || !m || !d) return ymd;
-  const date = new Date(y, m - 1, d);
-  const dow = (date.getDay() + 6) % 7;
-  const start = new Date(date);
-  start.setDate(date.getDate() - dow);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  return `${ymdFromDate(start)} ~ ${ymdFromDate(end)}`;
-}
-
-function scopeFromSchedule(
-  s: WhistleSchedule,
-  partners: Partner[],
-): PartnerScope {
-  const known = new Set(partners.map((p) => p.id));
-  const keep = (ids?: string[]) => {
-    const raw = (ids ?? []).filter(Boolean);
-    if (partners.length === 0) return raw;
-    return raw.filter((id) => known.has(id));
-  };
-  if (s.lastScopeMode === "all") return { mode: "all", ids: [] };
-  if (s.lastScopeMode === "selected") {
-    const ids = keep(s.lastScopeIds);
-    if (ids.length > 0) return { mode: "selected", ids };
-  }
-  const ids = keep(s.partnerIds);
-  return ids.length > 0 ? { mode: "selected", ids } : { mode: "all", ids: [] };
-}
 
 export function WhistlePage({
   clues,
@@ -114,7 +65,6 @@ export function WhistlePage({
   const [reports, setReports] = useState<WhistleReport[]>([]);
   const [viewReport, setViewReport] = useState<WhistleReport | null>(null);
   const [scope, setScope] = useState<PartnerScope>({ mode: "all", ids: [] });
-  const [runDate, setRunDate] = useState(todayYmd);
 
   async function refreshReports() {
     try {
@@ -124,7 +74,7 @@ export function WhistlePage({
     }
   }
 
-  async function refreshSchedule(syncScope = false) {
+  async function refreshSchedule() {
     try {
       const s = await getWhistleSchedule();
       setSchedule(s);
@@ -133,29 +83,19 @@ export function WhistlePage({
       setWeeklyEnabled(!!s.weeklyEnabled);
       setWeeklyDow(s.weeklyDow || 1);
       setWeeklyTime(s.weeklyTime || "09:00");
-      if (syncScope) {
-        setScope(scopeFromSchedule(s, partners));
-      }
+      const ids = (s.partnerIds ?? []).filter(Boolean);
+      setScope(
+        ids.length > 0 ? { mode: "selected", ids } : { mode: "all", ids: [] },
+      );
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     }
   }
 
   useEffect(() => {
-    void refreshSchedule(true);
+    void refreshSchedule();
     void refreshReports();
   }, []);
-
-  useEffect(() => {
-    if (partners.length === 0) return;
-    setScope((prev) => {
-      if (prev.mode !== "selected") return prev;
-      const known = new Set(partners.map((p) => p.id));
-      const ids = prev.ids.filter((id) => known.has(id));
-      if (ids.length === prev.ids.length) return prev;
-      return ids.length > 0 ? { mode: "selected", ids } : prev;
-    });
-  }, [partners]);
 
   const filtered = useMemo(() => {
     if (levelFilter === "all") return clues;
@@ -172,11 +112,6 @@ export function WhistlePage({
 
   const canRun = partnerCount > 0 && (scope.mode === "all" || scope.ids.length > 0);
   const selectedIds = effectivePartnerIds(scope);
-
-  function changeScope(next: PartnerScope) {
-    setScope(next);
-    void saveWhistleLastScope(next.mode, next.ids);
-  }
 
   async function saveSchedule() {
     if (scope.mode === "selected" && scope.ids.length === 0) {
@@ -213,7 +148,7 @@ export function WhistlePage({
       setMsg(null);
     });
     try {
-      const res = await runWhistleJob(kind, selectedIds, runDate);
+      const res = await runWhistleJob(kind, selectedIds);
       setBatch(res.batch);
       setViewReport(res.report);
       setMsg(`${kind === "daily" ? "日报" : "周报"}已生成：${res.report.title}`);
@@ -262,18 +197,7 @@ export function WhistlePage({
           <div className="text-xs font-semibold text-axiom-accent">风险吹哨</div>
           <h1 className="mt-0.5 text-xl font-bold tracking-tight">监测跑批</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 rounded-full bg-black/[0.04] py-1 pl-3 pr-2">
-            <span className="text-xs text-axiom-muted">日期</span>
-            <input
-              type="date"
-              value={runDate}
-              max={todayYmd()}
-              disabled={busy}
-              onChange={(e) => setRunDate(e.target.value || todayYmd())}
-              className="rounded-full border-0 bg-transparent px-1 py-1 text-sm outline-none"
-            />
-          </label>
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             disabled={busy || !canRun}
@@ -355,14 +279,10 @@ export function WhistlePage({
         )}
 
         <div className="border-t border-black/[0.04] pt-4">
-          <div className="mb-3 text-[11px] leading-relaxed text-axiom-muted">
-            手动跑批按上方日期检索：日报 {runDate}；周报 {weekRangeHint(runDate)}。
-            机构范围如下（可指定公司）；定时任务仍按滚动 24 小时 / 7 天。
-          </div>
           <PartnerScopePicker
             partners={partners}
             value={scope}
-            onChange={changeScope}
+            onChange={setScope}
             disabled={busy}
           />
         </div>
@@ -411,23 +331,6 @@ export function WhistlePage({
               {e}
             </div>
           ))}
-          {(batch.searchQueries ?? []).length > 0 && (
-            <div className="mt-3 space-y-1">
-              <div className="text-[11px] font-semibold text-axiom-muted">
-                本次检索词（{(batch.searchQueries ?? []).length} 条）
-              </div>
-              <div className="max-h-48 space-y-1 overflow-y-auto">
-              {(batch.searchQueries ?? []).map((q) => (
-                <div
-                  key={q}
-                  className="break-all rounded-xl bg-black/[0.03] px-3 py-2 font-mono text-[11px] leading-relaxed text-axiom-text/80"
-                >
-                  {q}
-                </div>
-              ))}
-              </div>
-            </div>
-          )}
         </section>
       )}
 
@@ -565,7 +468,7 @@ export function WhistlePage({
       </section>
 
       {selected && (
-        <div className="fixed inset-0 z-[60] flex justify-end bg-black/20 p-4">
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/20 p-4">
           <div className="flex h-full w-full max-w-md flex-col rounded-[28px] bg-white shadow-soft">
             <div className="flex items-start justify-between gap-3 border-b border-black/[0.04] p-5">
               <div>
@@ -596,7 +499,7 @@ export function WhistlePage({
                 k="来源"
                 v={`${sourceLabel(selected.sourceSystem)}（${selected.sourceSystem || "—"}） · ${selected.credibility || "—"}`}
               />
-              <Row k="证据链接" v={selected.sourceUrl || "—"} url={selected.sourceUrl} />
+              <Row k="证据链接" v={selected.sourceUrl || "—"} />
               <Row k="降噪" v={selected.denoiseStatus || "—"} />
               <Row k="状态" v={selected.status} />
             </div>
@@ -635,8 +538,8 @@ export function WhistlePage({
             </div>
             <div className="mt-1.5 text-xs leading-relaxed text-axiom-muted">
               {runningKind === "daily"
-                ? `全网检索 ${runDate}（自然日）`
-                : `全网检索 ${weekRangeHint(runDate)}（该日所在自然周）`}
+                ? "全网检索最近 24 小时（例如早上 8 点跑，覆盖昨天 8 点至今早 8 点）"
+                : "全网检索最近 7 天"}
               ，完成后会自动打开报告。
             </div>
           </div>
@@ -648,9 +551,12 @@ export function WhistlePage({
           report={viewReport}
           liveClues={clues}
           onClose={() => setViewReport(null)}
-          onOpenClue={(snap) => {
-            setViewReport(null);
-            setSelected(resolveLiveClue(clues, snap));
+          onOpenClue={(id) => {
+            const hit = clues.find((c) => c.id === id);
+            if (hit) {
+              setViewReport(null);
+              setSelected(hit);
+            }
           }}
         />
       )}
@@ -658,24 +564,11 @@ export function WhistlePage({
   );
 }
 
-function Row({ k, v, url }: { k: string; v: string; url?: string }) {
-  const href = url?.trim();
-  const isLink = Boolean(href && /^https?:\/\//i.test(href));
+function Row({ k, v }: { k: string; v: string }) {
   return (
     <div>
       <div className="text-xs text-axiom-muted">{k}</div>
-      {isLink ? (
-        <a
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-0.5 block break-all font-medium text-axiom-accent underline-offset-2 hover:underline"
-        >
-          {href}
-        </a>
-      ) : (
-        <div className="mt-0.5 break-all font-medium text-axiom-text">{v}</div>
-      )}
+      <div className="mt-0.5 break-all font-medium text-axiom-text">{v}</div>
     </div>
   );
 }

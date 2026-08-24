@@ -101,15 +101,8 @@ const CHECKS: &[CheckDef] = &[
         title: "被列为失信被执行人",
         legal_basis: "最高法关于失信被执行人名单规定",
         types: &[],
-        // 不用单独「失信」「限制高消费」：处罚新闻/百科常带这些词，不等于已列入失信名单
-        keywords: &[
-            "失信被执行人名单",
-            "被列入失信被执行人",
-            "被列为失信被执行人",
-            "被限制高消费",
-            "限制高消费令",
-            "限制消费令",
-        ],
+        // 不用单独「失信」：避免「未见失信…」类否定表述误触发
+        keywords: &["失信被执行人", "限制高消费", "老赖"],
     },
     CheckDef {
         id: "R03",
@@ -303,7 +296,7 @@ const CHECKS: &[CheckDef] = &[
         title: "大额诉讼（>净资产5%）",
         legal_basis: "通用风险点",
         types: &[],
-        keywords: &["重大诉讼", "被起诉", "作为被告", "涉案金额"],
+        keywords: &["重大诉讼", "涉案", "被告"],
     },
     CheckDef {
         id: "Y05",
@@ -328,14 +321,6 @@ const CHECKS: &[CheckDef] = &[
         legal_basis: "《企业经营异常名录管理暂行办法》",
         types: &[],
         keywords: &["经营异常", "异常名录"],
-    },
-    CheckDef {
-        id: "Y08",
-        color: "yellow",
-        title: "监管行政处罚（未达大额线）",
-        legal_basis: "监管处罚公开信息；大额（>100万）或公开通报走 O02",
-        types: &[],
-        keywords: &["行政处罚", "罚款", "处罚决定", "罚单", "被处罚"],
     },
 ];
 
@@ -395,13 +380,13 @@ pub fn run_review(
         }
     }
 
-    // 3) 百度千帆搜索（先跑，通常比工商 MCP 更快出结果；最多 2 次 HTTP）
+    // 3) Tavily 全网搜（先跑，通常比工商 MCP 更快出结果；最多 2 次 HTTP）
     let use_web = req.use_web_search.unwrap_or(true);
     if use_web {
-        if let Ok(web) = crate::baidu_search::load_config(conn) {
-            if web.ready() {
+        if let Ok(tav) = crate::tavily::load_config(conn) {
+            if tav.ready() {
                 let (web_docs, web_labels, web_err) =
-                    fetch_web_docs(&web.api_key, &partner_name);
+                    fetch_web_docs(&tav.api_key, &partner_name);
                 for lab in web_labels {
                     if !evidence_sources.contains(&lab) {
                         evidence_sources.push(lab);
@@ -434,14 +419,13 @@ pub fn run_review(
     }
 
     let boosts = load_keyword_boosts(conn)?;
-    let aliases = subject_aliases(&partner_name);
 
     let mut items = Vec::new();
     for def in CHECKS {
         if !type_match(def.types, &partner_type) {
             continue;
         }
-        let (triggered, evidence, source) = match_evidence(def, &docs, &boosts, &aliases);
+        let (triggered, evidence, source) = match_evidence(def, &docs, &boosts);
         let override_hit = req
             .manual_flags
             .as_ref()
@@ -476,7 +460,7 @@ pub fn run_review(
 
     let evidence_incomplete = docs.is_empty();
     let has_external = evidence_sources.iter().any(|s| {
-        matches!(s.as_str(), "企查查" | "天眼查" | "全网搜")
+        s.contains("企查查") || s.contains("天眼查") || s.contains("全网搜")
     });
     // 融担核心经营指标若证据中完全未出现，不得绿灯
     let guarantee_thin = partner_type == "guarantee"
@@ -507,7 +491,7 @@ pub fn run_review(
     }
     if evidence_incomplete || !has_external {
         remediation.push(
-            "证据不足：请配置百度千帆搜索或企查查/天眼查，或粘贴尽调材料后再签批".into(),
+            "证据不足：请配置 Tavily 全网搜或企查查/天眼查，或粘贴尽调材料后再签批".into(),
         );
     }
     if guarantee_thin {
@@ -566,7 +550,6 @@ pub fn run_review(
         &summary,
         &evidence_sources,
         &ai_notes,
-        &docs,
     );
 
     let review = AdmissionReview {
@@ -651,150 +634,10 @@ fn type_match(allowed: &[&str], partner_type: &str) -> bool {
     allowed.is_empty() || allowed.iter().any(|t| *t == partner_type)
 }
 
-fn subject_aliases(name: &str) -> Vec<String> {
-    let name = name.trim();
-    let brand = crate::baidu_search::search_brand_from_name(name);
-    let mut out = Vec::new();
-    for s in [name, brand.trim()] {
-        if s.chars().count() >= 4 && !out.iter().any(|x: &String| x == s) {
-            out.push(s.to_string());
-        }
-    }
-    out
-}
-
-fn text_mentions_subject(text: &str, aliases: &[String]) -> bool {
-    aliases.iter().any(|a| text.contains(a.as_str()))
-}
-
-fn web_hit_usable(title: &str, url: &str, text: &str, aliases: &[String]) -> bool {
-    if !text_mentions_subject(text, aliases) {
-        return false;
-    }
-    // 开庭公告只要点名本公司就留；原告/被告由清单侧判断。其它网页仍走宣传稿过滤。
-    if title.contains("开庭公告") || url.contains("openNoticeDetail") {
-        return true;
-    }
-    crate::baidu_search::keep_search_hit(title, text)
-}
-
-fn is_court_notice_doc(d: &EvidenceDoc) -> bool {
-    d.text.contains("开庭公告") || d.ref_url.contains("openNoticeDetail")
-}
-
-/// 爱企查开庭公告页的导航里常挂「失信被执行人」「行政处罚」，不能当事实命中。
-fn chrome_keyword_on_docket(def: &CheckDef, d: &EvidenceDoc) -> bool {
-    is_court_notice_doc(d) && matches!(def.id, "R02" | "O02" | "Y08")
-}
-
-fn partner_is_defendant(text: &str, aliases: &[String]) -> bool {
-    aliases.iter().any(|a| {
-        text.contains(&format!("被告:{a}"))
-            || text.contains(&format!("被告：{a}"))
-            || text.contains(&format!("被告 {a}"))
-            || text.contains(&format!("被告{a}"))
-            || text.contains(&format!("与被告{a}"))
-            || text.contains(&format!("{a}作为被告"))
-            || text.contains(&format!("{a}（被告）"))
-            || text.contains(&format!("{a}(被告)"))
-    })
-}
-
-fn partner_is_plaintiff(text: &str, aliases: &[String]) -> bool {
-    aliases.iter().any(|a| {
-        text.contains(&format!("原告:{a}"))
-            || text.contains(&format!("原告：{a}"))
-            || text.contains(&format!("原告 {a}"))
-            || text.contains(&format!("原告{a}"))
-            || text.contains(&format!("{a}作为原告"))
-    })
-}
-
-fn preceding_chars(text: &str, byte_idx: usize, n: usize) -> String {
-    text.get(..byte_idx)
-        .unwrap_or("")
-        .chars()
-        .rev()
-        .take(n)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect()
-}
-
-fn hit_negated(text: &str, byte_idx: usize) -> bool {
-    let pre = preceding_chars(text, byte_idx, 12);
-    ["未", "没有", "并非", "未见", "不存在", "不是", "非"].iter().any(|x| pre.contains(x))
-}
-
-/// 关键词须落在机构名附近，避免同页其它公司/导航/相关阅读误伤。
-fn keyword_near_subject(text: &str, kw: &str, aliases: &[String], window: usize) -> bool {
-    if kw.is_empty() {
-        return false;
-    }
-    for (kp, _) in text.match_indices(kw) {
-        if hit_negated(text, kp) {
-            continue;
-        }
-        for a in aliases {
-            for (ap, _) in text.match_indices(a.as_str()) {
-                if kp.abs_diff(ap) <= window {
-                    return true;
-                }
-            }
-        }
-    }
-    false
-}
-
-fn read_uint_at(chars: &[char], i: usize) -> Option<(u32, usize)> {
-    let mut j = i;
-    while j < chars.len() && chars[j].is_ascii_digit() {
-        j += 1;
-    }
-    if j == i {
-        return None;
-    }
-    let s: String = chars[i..j].iter().collect();
-    Some((s.parse().ok()?, j))
-}
-
-/// 「罚款19万」不算；「罚款100万/120万元」才够 O02 大额线。
-fn penalty_ge_100_wan(text: &str) -> bool {
-    let chars: Vec<char> = text.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        if let Some((n, j)) = read_uint_at(&chars, i) {
-            if n >= 100 && j < chars.len() && chars[j] == '万' {
-                let start = i.saturating_sub(16);
-                let ctx: String = chars[start..j].iter().collect();
-                if ctx.contains('罚') {
-                    return true;
-                }
-            }
-            i = j.max(i + 1);
-            continue;
-        }
-        i += 1;
-    }
-    false
-}
-
-fn o02_keyword_counts(text: &str, kw: &str) -> bool {
-    if kw == "公开通报" || kw == "监管通报" {
-        return true;
-    }
-    if matches!(kw, "行政处罚" | "罚款" | "处罚决定") {
-        return penalty_ge_100_wan(text) || text.contains("公开通报") || text.contains("监管通报");
-    }
-    true
-}
-
 fn match_evidence(
     def: &CheckDef,
     docs: &[EvidenceDoc],
     boosts: &HashMap<String, Vec<String>>,
-    aliases: &[String],
 ) -> (bool, String, String) {
     let mut kws: Vec<String> = def.keywords.iter().map(|s| (*s).to_string()).collect();
     if let Some(extra) = boosts.get(def.id) {
@@ -805,41 +648,8 @@ fn match_evidence(
     }
 
     for d in docs {
-        if def.id == "Y04" {
-            if partner_is_defendant(&d.text, aliases) {
-                return (
-                    true,
-                    format!("[{}] 本公司作为被告：{}", d.source, truncate(&d.text, 80)),
-                    d.ref_url.clone(),
-                );
-            }
-            // 融担当原告追偿是主业，不当「大额诉讼」
-            if partner_is_plaintiff(&d.text, aliases) && !partner_is_defendant(&d.text, aliases) {
-                continue;
-            }
-        }
         for kw in &kws {
             if kw.is_empty() {
-                continue;
-            }
-            if chrome_keyword_on_docket(def, d) {
-                continue;
-            }
-            if def.id == "Y08"
-                && (penalty_ge_100_wan(&d.text)
-                    || d.text.contains("公开通报")
-                    || d.text.contains("监管通报"))
-            {
-                continue;
-            }
-            if def.color == "red" || def.id == "O02" || def.id == "Y08" {
-                if !keyword_near_subject(&d.text, kw, aliases, 120) {
-                    continue;
-                }
-            } else if !d.text.contains(kw.as_str()) {
-                continue;
-            }
-            if def.id == "O02" && !o02_keyword_counts(&d.text, kw) {
                 continue;
             }
             if d.text.contains(kw.as_str()) {
@@ -907,7 +717,6 @@ fn fetch_enterprise_docs_fast(
                 });
             }
             Err(e) => {
-                labels.push("企查查未完成".into());
                 docs.push(EvidenceDoc {
                     source: "企查查".into(),
                     text: format!("企查查补证未完成（已跳过，不阻塞报告）：{e}"),
@@ -940,7 +749,6 @@ fn fetch_enterprise_docs_fast(
                 });
             }
             Err(e) => {
-                labels.push("天眼查未完成".into());
                 docs.push(EvidenceDoc {
                     source: "天眼查".into(),
                     text: format!("天眼查补证未完成（已跳过，不阻塞报告）：{e}"),
@@ -1023,37 +831,41 @@ fn fetch_web_docs(
     api_key: &str,
     name: &str,
 ) -> (Vec<EvidenceDoc>, Vec<String>, Option<String>) {
-    use crate::baidu_search::{search_hits_with_opts, SearchOpts};
+    use crate::tavily::{search_hits_with_opts, SearchOpts};
 
     let mut docs = Vec::new();
     let mut labels = Vec::new();
     let mut err_msg = None;
     let name = name.trim();
     if name.is_empty() || api_key.trim().is_empty() {
-        return (docs, labels, Some("公司名为空或未配置百度搜索".into()));
+        return (docs, labels, Some("公司名为空或未配置 Tavily".into()));
     }
 
-    let brand = crate::baidu_search::search_brand_from_name(name);
-    let aliases = subject_aliases(name);
-    let queries = crate::baidu_search::admission_web_queries(&brand);
-    let opts = SearchOpts::last_semiyear(8);
+    let queries = [
+        format!("\"{name}\" (处罚 OR 失信被执行人 OR 被执行 OR 投诉 OR 违规 OR 诉讼 OR 开庭)"),
+        format!("\"{name}\" (融资担保 OR 工商 OR 变更 OR 注册资本 OR 许可证)"),
+    ];
+    let opts = SearchOpts {
+        max_results: 5,
+        search_depth: "basic",
+        time_range: None,
+        start_date: None,
+        drop_before_date: None,
+    };
 
     for (i, q) in queries.iter().enumerate() {
-        if i as u32 >= crate::baidu_search::MAX_CALLS_PER_OPERATION {
+        if i as u32 >= crate::tavily::MAX_CALLS_PER_OPERATION {
             break;
         }
         match search_hits_with_opts(api_key, q, &opts) {
             Ok(hits) => {
-                let mut kept = 0u32;
+                if !hits.is_empty() {
+                    labels.push("全网搜".into());
+                }
                 for h in hits {
-                    let text = format!("{} {} {}", h.title, h.summary, h.body);
-                    if !web_hit_usable(&h.title, &h.url, &text, &aliases) {
-                        continue;
-                    }
-                    kept += 1;
                     docs.push(EvidenceDoc {
                         source: "全网搜".into(),
-                        text,
+                        text: format!("{} {} {}", h.title, h.summary, h.body),
                         ref_url: h.url,
                         level: match h.credibility.as_str() {
                             "A" => 1,
@@ -1061,9 +873,6 @@ fn fetch_web_docs(
                             _ => 3,
                         },
                     });
-                }
-                if kept > 0 {
-                    labels.push("全网搜".into());
                 }
             }
             Err(e) => {
@@ -1099,33 +908,16 @@ fn llm_admission_notes(
                 && (i.color == "red"
                     || matches!(
                         i.id.as_str(),
-                        "O02" | "O03" | "O07" | "Y01" | "Y03" | "Y04" | "Y05" | "Y08"
+                        "O02" | "O03" | "O07" | "Y01" | "Y03" | "Y04" | "Y05"
                     ))
         })
         .take(8)
         .map(|i| format!("{} {}", i.id, i.title))
         .collect();
-    let mut ordered: Vec<&EvidenceDoc> = docs.iter().collect();
-    ordered.sort_by_key(|d| {
-        if d.source.contains("企查") || d.source.contains("天眼") {
-            0u8
-        } else if d.source.contains("全网") {
-            1
-        } else {
-            2
-        }
-    });
-    let evidence_brief: String = ordered
+    let evidence_brief: String = docs
         .iter()
-        .take(12)
-        .map(|d| {
-            let n = if d.source.contains("企查") || d.source.contains("天眼") {
-                1600
-            } else {
-                280
-            };
-            format!("- [{}] {}", d.source, truncate(&d.text, n))
-        })
+        .take(10)
+        .map(|d| format!("- [{}] {}", d.source, truncate(&d.text, 280)))
         .collect::<Vec<_>>()
         .join("\n");
     let system = r#"你是消费金融「合作机构准入」合规分析师。根据清单触发结果与证据，输出一份简明中文分析报告（可用小标题，不要用 markdown 代码块）。
@@ -1135,11 +927,7 @@ fn llm_admission_notes(
 2）风险点统计：红/橙/黄各多少；并列出已触发项的具体含义
 3）待核验项：证据不足、无法确认的关键检查（尤其融担杠杆/代偿/准备金、完整司法处罚清单）
 4）结论建议：否决 / 有条件通过 / 待核验 / 通过 之一，并说明理由
-硬约束：
-- 只依据给定证据，禁止编造案号、处罚决定书、失信名单；不确定就写「待核验」。
-- 工商登记（统一社会信用代码、注册资本、股东/实控人、成立日期、登记状态）以「企查查」「天眼查」来源为准。
-- 「全网搜」只是舆情/开庭/投诉网页，不能代替工商登记；不要把网页证据写成「材料中未提供工商信息」。
-- 若企查查/天眼查证据里已有字段，必须写出来并标明来源；若这两项显示「未完成」或正文无该字段，才写待核验。"#;
+硬约束：只依据给定材料，禁止编造案号、处罚决定书、失信名单；不确定就写「待核验」。"#;
     let user = format!(
         "机构：{name}\n类型：{ptype}\n场景：{scenario}\n统计：红{red_n}/橙{orange_n}/黄{yellow_n}\n已触发：\n{}\n关键未触发（待核实）：\n{}\n证据摘要：\n{evidence_brief}",
         if triggered.is_empty() {
@@ -1450,7 +1238,6 @@ fn render_markdown(
     summary: &str,
     sources: &[String],
     ai_notes: &str,
-    docs: &[EvidenceDoc],
 ) -> String {
     let mut md = String::new();
     md.push_str(&format!("# 准入意见书 · {name}\n\n"));
@@ -1466,26 +1253,6 @@ fn render_markdown(
         chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
     ));
     md.push_str(&format!("## 摘要\n\n{summary}\n\n"));
-    md.push_str("## 取证状态\n\n");
-    if sources.is_empty() {
-        md.push_str("- 无外部取证\n\n");
-    } else {
-        for s in sources {
-            let mark = if s.contains("未完成") { "未完成" } else { "已接入" };
-            md.push_str(&format!("- {s}：{mark}\n"));
-        }
-        md.push('\n');
-    }
-    let mcp_docs: Vec<&EvidenceDoc> = docs
-        .iter()
-        .filter(|d| d.source.contains("企查") || d.source.contains("天眼"))
-        .collect();
-    if !mcp_docs.is_empty() {
-        md.push_str("## 工商 MCP 摘录\n\n");
-        for d in mcp_docs {
-            md.push_str(&format!("### {}\n\n{}\n\n", d.source, truncate(&d.text, 2500)));
-        }
-    }
     if !ai_notes.is_empty() {
         md.push_str(&format!("## AI 研判要点\n\n{ai_notes}\n\n"));
     }
@@ -1522,114 +1289,4 @@ fn render_markdown(
         md.push_str("\n> **警示**：证据不完整或结论为待核验时，不得按「通过」推进业务合作。\n");
     }
     md
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn doc(source: &str, text: &str, url: &str) -> EvidenceDoc {
-        EvidenceDoc {
-            source: source.into(),
-            text: text.into(),
-            ref_url: url.into(),
-            level: 3,
-        }
-    }
-
-    fn def(id: &str) -> &'static CheckDef {
-        CHECKS.iter().find(|c| c.id == id).expect(id)
-    }
-
-    #[test]
-    fn drops_unrelated_open_notice() {
-        let aliases = subject_aliases("黑龙江农牧建融资担保有限公司");
-        assert!(aliases.iter().any(|a| a.contains("农牧建")), "{aliases:?}");
-        let text = "开庭公告详情 当事人 ,陕西海沣建设集团有限公司 原告:陕西犇牧实业有限公司 与被告陕西海沣建设集团有限公司 失信被执行人 行政处罚 被告";
-        assert!(!text_mentions_subject(text, &aliases));
-        assert!(!web_hit_usable(
-            "开庭公告详情",
-            "https://aiqicha.baidu.com/detail/openNoticeDetail?pid=95533556034918",
-            text,
-            &aliases
-        ));
-    }
-
-    #[test]
-    fn court_notice_chrome_does_not_trigger_dishonest_or_penalty() {
-        let aliases = subject_aliases("黑龙江农牧建融资担保有限公司");
-        let d = doc(
-            "全网搜",
-            "开庭公告详情 失信被执行人 行政处罚 原告:黑龙江农牧建融资担保有限公司 与焦某某追偿权纠纷",
-            "https://aiqicha.baidu.com/detail/openNoticeDetail?pid=2457",
-        );
-        let empty = HashMap::new();
-        let (r02, _, _) = match_evidence(def("R02"), &[d.clone()], &empty, &aliases);
-        let (o02, _, _) = match_evidence(def("O02"), &[d.clone()], &empty, &aliases);
-        let (y08, _, _) = match_evidence(def("Y08"), &[d.clone()], &empty, &aliases);
-        let (y04, _, _) = match_evidence(def("Y04"), &[d], &empty, &aliases);
-        assert!(!r02, "开庭公告导航不能打成失信被执行人");
-        assert!(!o02, "开庭公告导航不能打成行政处罚");
-        assert!(!y08, "开庭公告导航不能打成监管罚款");
-        assert!(!y04, "本公司当原告追偿不能打成大额诉讼");
-    }
-
-    #[test]
-    fn defendant_notice_triggers_y04() {
-        let aliases = subject_aliases("黑龙江农牧建融资担保有限公司");
-        let d = doc(
-            "全网搜",
-            "开庭公告详情 原告:张三 被告:黑龙江农牧建融资担保有限公司",
-            "https://aiqicha.baidu.com/detail/openNoticeDetail?pid=1",
-        );
-        let empty = HashMap::new();
-        let (y04, ev, _) = match_evidence(def("Y04"), &[d], &empty, &aliases);
-        assert!(y04, "{ev}");
-        assert!(ev.contains("作为被告"));
-    }
-
-    #[test]
-    fn hangzhuo_penalty_news_is_not_dishonest_executor() {
-        let aliases = subject_aliases("陕西航卓融资担保有限公司");
-        let d = doc(
-            "全网搜",
-            "两家助贷“常客”融担公司被处罚,三湘银行刚公告与两者同时合作 近日,陕西省地方金融管理局连续公布3张罚单，对陕西航卓融资担保有限公司处以罚款19万元。相关阅读：什么是限制高消费、失信被执行人",
-            "https://baijiahao.baidu.com/s?id=1870327893701370946",
-        );
-        let empty = HashMap::new();
-        let (r02, ev, _) = match_evidence(def("R02"), &[d.clone()], &empty, &aliases);
-        let (o02, _, _) = match_evidence(def("O02"), &[d.clone()], &empty, &aliases);
-        let (y08, yev, _) = match_evidence(def("Y08"), &[d], &empty, &aliases);
-        assert!(!r02, "处罚新闻里出现「限制高消费」不能打成失信被执行人: {ev}");
-        assert!(!o02, "罚款19万不够 O02 大额处罚（>100万）");
-        assert!(y08, "19万监管罚款必须体现在 Y08: {yev}");
-    }
-
-    #[test]
-    fn listed_dishonest_executor_still_triggers_r02() {
-        let aliases = subject_aliases("陕西航卓融资担保有限公司");
-        let d = doc(
-            "全网搜",
-            "中国执行信息公开网显示，陕西航卓融资担保有限公司被列入失信被执行人名单，并被采取限制消费令。",
-            "https://zxgk.court.gov.cn/example",
-        );
-        let empty = HashMap::new();
-        let (r02, ev, _) = match_evidence(def("R02"), &[d], &empty, &aliases);
-        assert!(r02, "{ev}");
-    }
-
-    #[test]
-    fn million_penalty_triggers_o02() {
-        let aliases = subject_aliases("陕西航卓融资担保有限公司");
-        let d = doc(
-            "全网搜",
-            "陕西地方金融管理局对陕西航卓融资担保有限公司作出行政处罚，罚款120万元。",
-            "https://example.com/penalty",
-        );
-        let empty = HashMap::new();
-        let (o02, ev, _) = match_evidence(def("O02"), &[d.clone()], &empty, &aliases);
-        let (y08, _, _) = match_evidence(def("Y08"), &[d], &empty, &aliases);
-        assert!(o02, "{ev}");
-        assert!(!y08, "已达大额线时不要再重复记 Y08");
-    }
 }
