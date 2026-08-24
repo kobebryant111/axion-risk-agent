@@ -258,8 +258,6 @@ pub fn grade_hit(
     text: &str,
     rules: &[EffectiveRule],
 ) -> Option<GradeResult> {
-    let credibility = hit.credibility.to_uppercase();
-
     let applicable: Vec<&EffectiveRule> = rules
         .iter()
         .filter(|r| r.def.enabled && (r.partner_type == "common" || r.partner_type == partner_type))
@@ -281,10 +279,7 @@ pub fn grade_hit(
             continue;
         }
 
-        let mut level = r.def.level;
-        if credibility == "C" && level <= 2 {
-            level = 3;
-        }
+        let level = r.def.level;
 
         let candidate = GradeResult {
             level,

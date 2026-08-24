@@ -303,6 +303,9 @@ pub struct BatchResult {
     pub clues: Vec<RiskClue>,
     #[serde(default)]
     pub scope_note: String,
+    /// 本次实际发给百度搜索的检索式，便于核对漏检
+    #[serde(default)]
+    pub search_queries: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -325,6 +328,11 @@ pub struct WhistleSchedule {
     pub partner_ids: Vec<String>,
     #[serde(default)]
     pub scope_hint: String,
+    /// 手动跑批上次勾选：all | selected；空表示尚未记过
+    #[serde(default)]
+    pub last_scope_mode: String,
+    #[serde(default)]
+    pub last_scope_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -431,7 +439,7 @@ pub struct EnterpriseMcpTestResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TavilySettings {
+pub struct BaiduSearchSettings {
     pub enabled: bool,
     pub has_api_key: bool,
     pub ready: bool,
@@ -441,7 +449,7 @@ pub struct TavilySettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TavilySettingsSave {
+pub struct BaiduSearchSettingsSave {
     pub enabled: Option<bool>,
     pub api_key: Option<String>,
     pub use_in_batch: Option<bool>,
@@ -449,7 +457,7 @@ pub struct TavilySettingsSave {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TavilyTestResult {
+pub struct BaiduSearchTestResult {
     pub ok: bool,
     pub message: String,
     pub result_count: u32,
@@ -631,7 +639,7 @@ pub struct AdmissionReviewRequest {
     pub manual_flags: Option<std::collections::HashMap<String, bool>>,
     /// 是否拉取企查查/天眼查补证
     pub use_enterprise_mcp: Option<bool>,
-    /// 是否用 Tavily 全网搜补证（默认 true；按次计费，最多 2 次）
+    /// 是否用百度千帆搜索补证（默认 true；单次最多 2 次）
     pub use_web_search: Option<bool>,
     /// 是否用 LLM 生成意见书摘要与建议
     pub use_llm_assist: Option<bool>,

@@ -11,7 +11,7 @@ use serde_json::json;
 use std::sync::Mutex;
 use uuid::Uuid;
 
-pub fn tool_defs(mcp: &EnterpriseMcpConfig, tavily_ready: bool) -> Vec<ToolDef> {
+pub fn tool_defs(mcp: &EnterpriseMcpConfig, search_ready: bool) -> Vec<ToolDef> {
     let mut tools = vec![
         ToolDef {
             type_: "function",
@@ -98,7 +98,7 @@ pub fn tool_defs(mcp: &EnterpriseMcpConfig, tavily_ready: bool) -> Vec<ToolDef> 
             type_: "function",
             function: llm::ToolFunctionDef {
                 name: "run_whistle_batch",
-                description: "对合作机构执行风险吹哨跑批（可选 Tavily 全网搜 + 规则定级）。可传 partner_ids 指定机构，不传则全量。",
+                description: "对合作机构执行风险吹哨跑批（可选百度全网搜 + 规则定级）。可传 partner_ids 指定机构，不传则全量。",
                 parameters: json!({
                     "type":"object",
                     "properties":{
@@ -147,16 +147,16 @@ pub fn tool_defs(mcp: &EnterpriseMcpConfig, tavily_ready: bool) -> Vec<ToolDef> 
         },
     ];
 
-    if tavily_ready {
+    if search_ready {
         tools.push(ToolDef {
             type_: "function",
             function: llm::ToolFunctionDef {
-                name: "tavily_web_search",
-                description: "Tavily 全网搜索：查新闻/处罚/投诉等公开网页（真实联网，按次计费）。同一轮对话最多调用 2 次，请合并检索意图到少量 query，勿反复调用。",
+                name: "baidu_web_search",
+                description: "百度千帆全网搜索。query 写成问句并带上新闻用词，例如「桔子数科最近有没有爆雷停摆跑路」。不要只搜机构名，也不要只问「负面信息」。",
                 parameters: json!({
                     "type":"object",
                     "properties":{
-                        "query":{"type":"string","description":"搜索词，建议含机构全称与风险关键词；一次问清，避免拆成多次"},
+                        "query":{"type":"string","description":"机构简称+一类负面事件词，如 桔子数科最近有没有爆雷停摆跑路资金池。不要用 OR，不要只写负面信息"},
                         "max_results":{"type":"integer","description":"1-5，默认5"}
                     },
                     "required":["query"]
@@ -232,29 +232,29 @@ pub fn tool_defs(mcp: &EnterpriseMcpConfig, tavily_ready: bool) -> Vec<ToolDef> 
 const SYSTEM_PROMPT: &str = r#"你是「智联鉴控」合作机构风险管理 AI 智能体助手。
 你可以帮助用户：查询机构名单、风险线索、规则库；启用/停用/改等级规则；新增自定义规则；触发吹哨跑批；经营守护（财报评估）；准入瞭望（拟合作前置合规研判）；解读风险含义。
 准入场景强调：业务开发初期即可研判，从源头阻断「先合作后尽调」；无证据时结论应为待核验而非绿灯通过。
-若已配置 Tavily，可用 tavily_web_search 做真实全网搜索（新闻/处罚/投诉等公开网页）。
+若已配置百度千帆搜索，可用 baidu_web_search 做真实全网搜索（新闻/处罚/投诉等公开网页）。
 若已配置企查查/天眼查 MCP，可用 qcc_* / tyc_* 工具查询企业工商与风险等公开数据：先 list_tools 再 call_tool，禁止编造工商/司法字段。
 硬约束：
 1. 需要查数或改配置时必须调用工具，不要编造线索 ID / 规则 ID / 网页链接。
 2. 定级结论要可解释，引用 rule_id、法规依据或线索字段；全网搜结果需说明来源 URL。
 3. 内置基线规则只能 override（停用/改级），不能声称已删除。
 4. 用简洁中文回答，先结论后依据。
-5. 用户未配置业务数据时，引导其到「机构名单」「规则库」下载固定 Excel 模板导入（无需 AI），再跑批；未配置 Tavily 时不要假装已联网搜索。
-6. Tavily 按次计费：同一轮对话 tavily_web_search 最多 2 次；优先一条综合 query，禁止为同一机构连打多次。"#;
+5. 用户未配置业务数据时，引导其到「机构名单」「规则库」下载固定 Excel 模板导入（无需 AI），再跑批；未配置百度搜索时不要假装已联网搜索。
+6. 百度搜索同一轮 baidu_web_search 最多 2 次；query 写成「机构 + 一类事件」问句（爆雷停摆跑路 / 处罚立案投诉），禁止只问「有哪些负面信息」，禁止 OR 布尔式。"#;
 
 pub fn run_agent(
     db: &Mutex<rusqlite::Connection>,
     cfg: &LlmConfig,
     req: &AgentChatRequest,
 ) -> Result<AgentChatResponse, String> {
-    let (mcp_cfg, tavily_cfg) = {
+    let (mcp_cfg, search_cfg) = {
         let conn = db.lock().map_err(|e| e.to_string())?;
         (
             enterprise_mcp::load_config(&conn)?,
-            crate::tavily::load_config(&conn)?,
+            crate::baidu_search::load_config(&conn)?,
         )
     };
-    let tools = tool_defs(&mcp_cfg, tavily_cfg.ready());
+    let tools = tool_defs(&mcp_cfg, search_cfg.ready());
     let mut messages: Vec<ChatMessage> = vec![ChatMessage {
         role: "system".into(),
         content: Some(SYSTEM_PROMPT.into()),
@@ -291,7 +291,7 @@ pub fn run_agent(
 
     let mut tool_traces = Vec::new();
     let mut mutated = false;
-    let mut tavily_calls: u32 = 0;
+    let mut search_calls: u32 = 0;
 
     for _round in 0..4 {
         // LLM HTTP outside DB lock
@@ -315,21 +315,21 @@ pub fn run_agent(
         for call in tool_calls {
             let (result, did_mutate) = if call.function.name == "run_whistle_batch" {
                 run_whistle_batch_tool(db, cfg, &call)?
-            } else if call.function.name == "tavily_web_search" {
-                if tavily_calls >= crate::tavily::MAX_CALLS_PER_OPERATION {
+            } else if call.function.name == "baidu_web_search" {
+                if search_calls >= crate::baidu_search::MAX_CALLS_PER_OPERATION {
                     (
                         json!({
                             "error": format!(
-                                "本轮对话 Tavily 已达上限 {} 次（按次计费，3 次以下），请基于已有结果作答或合并 query 后再试",
-                                crate::tavily::MAX_CALLS_PER_OPERATION
+                                "本轮对话百度搜索已达上限 {} 次，请基于已有结果作答或合并 query 后再试",
+                                crate::baidu_search::MAX_CALLS_PER_OPERATION
                             )
                         })
                         .to_string(),
                         false,
                     )
                 } else {
-                    tavily_calls += 1;
-                    dispatch_tavily_tool(&tavily_cfg, &call)?
+                    search_calls += 1;
+                    dispatch_baidu_search_tool(&search_cfg, &call)?
                 }
             } else if matches!(
                 call.function.name.as_str(),
@@ -405,18 +405,18 @@ fn run_whistle_batch_tool(
         "agent",
         id_ref,
         true,
-        crate::tavily::SearchWindow::LastDay,
+        crate::baidu_search::SearchWindow::LastDay,
     )?;
     Ok((serde_json::to_string(&res).unwrap_or_default(), true))
 }
 
-fn dispatch_tavily_tool(
-    cfg: &crate::tavily::TavilyConfig,
+fn dispatch_baidu_search_tool(
+    cfg: &crate::baidu_search::BaiduSearchConfig,
     call: &ToolCall,
 ) -> Result<(String, bool), String> {
     if !cfg.ready() {
         return Ok((
-            json!({"error":"Tavily 未启用或未配置 API Key，请到设置页配置"}).to_string(),
+            json!({"error":"百度搜索未启用或未配置 API Key，请到设置页配置"}).to_string(),
             false,
         ));
     }
@@ -432,7 +432,7 @@ fn dispatch_tavily_tool(
         .and_then(|v| v.as_u64())
         .unwrap_or(5)
         .clamp(1, 5) as u32;
-    let hits = crate::tavily::search_hits(&cfg.api_key, &query, max_results)?;
+    let hits = crate::baidu_search::search_hits(&cfg.api_key, &query, max_results)?;
     let brief: Vec<_> = hits
         .iter()
         .map(|h| {
