@@ -30,6 +30,125 @@ pub fn build_lexicon(
     words
 }
 
+const LEGAL_SUFFIXES: &[&str] = &[
+    "股份有限公司",
+    "有限责任公司",
+    "集团有限公司",
+    "有限公司",
+    "集团公司",
+    "集团",
+];
+
+/// 新闻里常见的业态缩写，对全部机构生效，不是某一家的特例。
+const TRADE_ABBREVS: &[(&str, &str)] = &[
+    ("数字科技", "数科"),
+    ("融资担保", "融担"),
+    ("商业保理", "保理"),
+    ("小额贷款", "小贷"),
+    ("消费金融", "消金"),
+    ("资产管理", "资管"),
+    ("信息技术", "信息"),
+];
+
+/// 检索/匹配用名称：全称、简称、去括号/去「有限公司」后的字号，以及业态缩写。
+pub fn expand_watch_terms(name: &str, alias: &str, lexicon: &[String]) -> Vec<String> {
+    let mut words = Vec::new();
+    for w in lexicon {
+        push_unique(&mut words, w);
+    }
+    push_unique(&mut words, name);
+    push_unique(&mut words, alias);
+    let compact = strip_legal_suffix(&strip_brackets(name));
+    push_unique(&mut words, &compact);
+    add_trade_abbrevs(&mut words);
+    add_marker_brands(&mut words, &compact);
+    words
+}
+
+fn push_unique(words: &mut Vec<String>, t: &str) {
+    let t = t.trim();
+    if t.is_empty() {
+        return;
+    }
+    if !words.iter().any(|x| x == t) {
+        words.push(t.to_string());
+    }
+}
+
+fn strip_brackets(s: &str) -> String {
+    let mut out = String::new();
+    let mut depth_cn = 0i32;
+    let mut depth_en = 0i32;
+    for c in s.chars() {
+        match c {
+            '（' => depth_cn += 1,
+            '）' => depth_cn = (depth_cn - 1).max(0),
+            '(' => depth_en += 1,
+            ')' => depth_en = (depth_en - 1).max(0),
+            _ if depth_cn == 0 && depth_en == 0 => out.push(c),
+            _ => {}
+        }
+    }
+    out
+}
+
+fn strip_legal_suffix(s: &str) -> String {
+    let mut t = s.trim().to_string();
+    for suf in LEGAL_SUFFIXES {
+        if t.ends_with(suf) {
+            let keep = t.chars().count().saturating_sub(suf.chars().count());
+            t = t.chars().take(keep).collect();
+            break;
+        }
+    }
+    t.trim().to_string()
+}
+
+fn add_trade_abbrevs(words: &mut Vec<String>) {
+    let snapshot = words.clone();
+    let has_digital_tech = snapshot.iter().any(|x| x.contains("数字科技"));
+    for w in &snapshot {
+        for (long, short) in TRADE_ABBREVS {
+            if w.contains(long) {
+                push_unique(words, &w.replace(long, short));
+            }
+        }
+        // 法定名带「数字科技」时，媒体常把简称里的「科技」写成「数科」
+        if has_digital_tech
+            && w.ends_with("科技")
+            && !w.contains("数科")
+            && w.chars().count() <= 8
+        {
+            push_unique(words, &w.replacen("科技", "数科", 1));
+        }
+    }
+}
+
+fn add_marker_brands(words: &mut Vec<String>, compact: &str) {
+    for (marker, abbrev) in TRADE_ABBREVS {
+        let Some(idx) = compact.find(marker) else {
+            continue;
+        };
+        let prefix: String = compact[..idx]
+            .chars()
+            .filter(|c| !matches!(c, '区' | '市' | '省' | '县' | '州' | '旗' | '域' | '园'))
+            .collect();
+        let chars: Vec<char> = prefix.chars().collect();
+        for n in [2usize, 3] {
+            if chars.len() < n {
+                continue;
+            }
+            let brand: String = chars[chars.len() - n..].iter().collect();
+            let first = brand.chars().next();
+            if matches!(first, Some('片' | '口' | '验' | '贸' | '的' | '和' | '与' | '自')) {
+                continue;
+            }
+            push_unique(words, &format!("{brand}{marker}"));
+            push_unique(words, &format!("{brand}{abbrev}"));
+        }
+    }
+}
+
 pub fn parse_coop_status(raw: &str) -> String {
     let s = raw.trim();
     if s.is_empty() {
@@ -315,6 +434,26 @@ mod tests {
     fn lexicon_dedup() {
         let lx = build_lexicon("甲公司", "甲", "甲集团", "9111", &["甲".into(), "乙子公司".into()]);
         assert_eq!(lx, vec!["甲公司", "甲", "甲集团", "9111", "乙子公司"]);
+    }
+
+    #[test]
+    fn expands_juzi_shuke_alias() {
+        let name = "辽宁自贸试验区（营口片区）桔子数字科技有限公司";
+        let terms = expand_watch_terms(name, "桔子科技", &build_lexicon(name, "桔子科技", "", "", &[]));
+        assert!(terms.iter().any(|t| t == name), "{terms:?}");
+        assert!(terms.iter().any(|t| t == "桔子数科"), "{terms:?}");
+        assert!(terms.iter().any(|t| t == "桔子科技"));
+        let title = "700亿助贷平台桔子数科惊天一雷，多家金融机构被动卷入其资金池";
+        assert!(terms.iter().any(|t| title.contains(t.as_str()) && t.chars().count() >= 4));
+    }
+
+    #[test]
+    fn expands_guarantee_abbrev_for_any_firm() {
+        let name = "中昆（黑龙江）融资担保有限公司";
+        let terms = expand_watch_terms(name, "中昆担保", &build_lexicon(name, "中昆担保", "", "", &[]));
+        assert!(terms.iter().any(|t| t == name), "{terms:?}");
+        assert!(terms.iter().any(|t| t.contains("融担")), "{terms:?}");
+        assert!(terms.iter().any(|t| t == "中昆担保"));
     }
 
     #[test]

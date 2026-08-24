@@ -12,7 +12,7 @@ mod pipeline;
 mod rules;
 mod sources;
 mod state;
-mod tavily;
+mod baidu_search;
 mod webview_runtime;
 mod whistle_ai;
 mod whistle_reports;
@@ -55,11 +55,12 @@ pub fn run() {
             commands::run_whistle_batch,
             commands::get_whistle_schedule,
             commands::save_whistle_schedule,
+            commands::save_whistle_last_scope,
             commands::run_whistle_job,
             commands::list_whistle_reports,
-            commands::get_tavily_settings,
-            commands::save_tavily_settings,
-            commands::test_tavily,
+            commands::get_baidu_search_settings,
+            commands::save_baidu_search_settings,
+            commands::test_baidu_search,
             commands::get_enterprise_mcp_settings,
             commands::save_enterprise_mcp_settings,
             commands::test_enterprise_mcp,

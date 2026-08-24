@@ -12,7 +12,7 @@ type Props = {
   report: WhistleReport;
   liveClues: RiskClue[];
   onClose: () => void;
-  onOpenClue?: (id: string) => void;
+  onOpenClue?: (clue: ReportClue) => void;
 };
 
 export function WhistleReportModal({ report, liveClues, onClose, onOpenClue }: Props) {
@@ -45,14 +45,42 @@ export function WhistleReportModal({ report, liveClues, onClose, onOpenClue }: P
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            <Kpi label="本期线索" value={report.clueCount} />
+            <Kpi label="本次命中" value={report.clueCount} />
             <Kpi label="L1 致命" value={report.level1} hot={report.level1 > 0} />
             <Kpi label="L2 重大" value={report.level2} hot={report.level2 > 0} />
             <Kpi label="扫描机构" value={stats.partnersScanned ?? "—"} />
-            <Kpi label="新增线索" value={stats.cluesUpserted ?? "—"} />
+            <Kpi label="原始命中" value={stats.rawHits ?? "—"} />
           </div>
 
           <p className="text-sm leading-relaxed text-axiom-text">{report.summary}</p>
+          {stats.scopeNote && (
+            <p className="text-xs text-axiom-muted">监测范围：{stats.scopeNote}</p>
+          )}
+
+          <section>
+            <h3 className="mb-2 text-sm font-semibold">
+              全网检索词
+              {(stats.searchQueries ?? []).length > 0
+                ? `（${(stats.searchQueries ?? []).length} 条）`
+                : ""}
+            </h3>
+            {(stats.searchQueries ?? []).length > 0 ? (
+              <div className="max-h-56 space-y-2 overflow-y-auto">
+                {(stats.searchQueries ?? []).map((q, i) => (
+                  <div
+                    key={`${i}-${q}`}
+                    className="break-all rounded-2xl bg-black/[0.03] px-3 py-2.5 font-mono text-[12px] leading-relaxed text-axiom-text"
+                  >
+                    {q}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                本报告未记录检索词。请重新点「出周报 / 出日报」生成新报告后即可看到实际发出的搜索词。
+              </div>
+            )}
+          </section>
 
           {errors.length > 0 && (
             <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -73,8 +101,8 @@ export function WhistleReportModal({ report, liveClues, onClose, onOpenClue }: P
               </div>
             ) : (
               <div className="space-y-2">
-                {l12.map((c) => (
-                  <ClueCard key={c.id} clue={c} onOpen={onOpenClue} />
+                {l12.map((c, i) => (
+                  <ClueCard key={c.id || `${c.title}-${i}`} clue={c} onOpen={onOpenClue} />
                 ))}
               </div>
             )}
@@ -89,8 +117,8 @@ export function WhistleReportModal({ report, liveClues, onClose, onOpenClue }: P
               <div className="text-sm text-axiom-muted">本期无更低等级线索</div>
             ) : (
               <div className="space-y-2">
-                {rest.slice(0, 20).map((c) => (
-                  <ClueCard key={c.id} clue={c} onOpen={onOpenClue} compact />
+                {rest.slice(0, 20).map((c, i) => (
+                  <ClueCard key={c.id || `${c.title}-${i}`} clue={c} onOpen={onOpenClue} compact />
                 ))}
                 {rest.length > 20 && (
                   <div className="text-xs text-axiom-muted">另有 {rest.length - 20} 条未展开</div>
@@ -132,12 +160,12 @@ function ClueCard({
 }: {
   clue: ReportClue;
   compact?: boolean;
-  onOpen?: (id: string) => void;
+  onOpen?: (clue: ReportClue) => void;
 }) {
   return (
     <button
       type="button"
-      onClick={() => onOpen?.(clue.id)}
+      onClick={() => onOpen?.(clue)}
       className="flex w-full gap-3 rounded-2xl border border-black/[0.04] bg-[#fcfbfe] px-3 py-3 text-left hover:border-axiom-accent/20 hover:bg-white"
     >
       <div

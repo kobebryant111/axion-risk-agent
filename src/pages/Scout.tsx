@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   getEnterpriseMcpSettings,
-  getTavilySettings,
+  getBaiduSearchSettings,
   listAdmissionReviews,
   runAdmissionReview,
 } from "../api";
@@ -48,7 +48,7 @@ export function ScoutPage({ partners: _partners }: Props) {
     void getEnterpriseMcpSettings()
       .then((s) => setMcpReady(!!(s.qccReady || s.tycReady)))
       .catch(() => setMcpReady(false));
-    void getTavilySettings()
+    void getBaiduSearchSettings()
       .then((s) => setWebReady(!!s.ready))
       .catch(() => setWebReady(false));
   }, []);

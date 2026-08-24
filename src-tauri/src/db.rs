@@ -99,10 +99,25 @@ pub fn open(path: &Path) -> Result<Connection, String> {
     let _ = crate::whistle_reports::ensure_schema(&conn);
     // 清掉历史黑猫 fixture / 演示线索，避免当成真实监测结果
     let _ = conn.execute(
+        "DELETE FROM seen_hashes WHERE evidence_hash IN (
+            SELECT evidence_hash FROM risk_clues
+             WHERE title LIKE '%成长之路%'
+                OR title LIKE '%向阳而生%'
+                OR title LIKE '%新征程%'
+                OR title LIKE '%政企同频%'
+                OR title LIKE '%紧跟监管%'
+                OR title LIKE '%扎根营口%'
+         )",
+        [],
+    );
+    let _ = conn.execute(
         "DELETE FROM risk_clues
-         WHERE source_system = 'heimao'
-            OR source_url LIKE '%/demo/heimao%'
-            OR source_url LIKE '%tousu.sina.com.cn/demo%'",
+         WHERE title LIKE '%成长之路%'
+            OR title LIKE '%向阳而生%'
+            OR title LIKE '%新征程%'
+            OR title LIKE '%政企同频%'
+            OR title LIKE '%紧跟监管%'
+            OR title LIKE '%扎根营口%'",
         [],
     );
     // migrate older DBs that lack new columns
@@ -292,6 +307,19 @@ pub fn list_clues(conn: &Connection) -> Result<Vec<RiskClue>, String> {
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
     Ok(rows)
+}
+
+pub fn clue_id_by_evidence_hash(conn: &Connection, hash: &str) -> Result<Option<String>, String> {
+    if hash.trim().is_empty() {
+        return Ok(None);
+    }
+    conn.query_row(
+        "SELECT id FROM risk_clues WHERE evidence_hash = ?1 LIMIT 1",
+        params![hash],
+        |r| r.get(0),
+    )
+    .optional()
+    .map_err(|e| e.to_string())
 }
 
 /// Insert clue if evidence_hash unseen; if seen, mark denoise as repeat and refresh last_seen.
