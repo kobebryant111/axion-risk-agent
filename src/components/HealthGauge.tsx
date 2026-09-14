@@ -39,7 +39,7 @@ export function HealthGauge({ score, label }: Props) {
         </svg>
         <div className="absolute inset-x-0 bottom-2 text-center">
           <div className="text-3xl font-bold tracking-tight">{score.toFixed(1)}</div>
-          <div className="text-xs text-axiom-muted">{label}</div>
+          <div className="text-sm font-medium text-axiom-muted">{label}</div>
         </div>
       </div>
     </div>

@@ -7,10 +7,11 @@
   --surface: #ffffff;
   --accent: #7c5cfc;
   --accent-soft: #ece7ff;
-  --text: #1f2937;
-  --text-muted: #9ca3af;
+  --text: #0f172a;
+  /* 投屏高对比：原 #9ca3af → #374151 */
+  --text-muted: #374151;
   --radius-lg: 24px;
-  --shadow: 0 8px 24px rgba(31, 41, 55, 0.06);
+  --shadow: 0 8px 24px rgba(31, 41, 55, 0.08);
 }
 
 html,
@@ -19,16 +20,32 @@ body,
   height: 100%;
 }
 
+html {
+  font-size: 17px;
+}
+
 body {
   margin: 0;
   font-family: "Plus Jakarta Sans", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.015em;
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 @layer components {
   .card {
     @apply rounded-3xl bg-white shadow-soft;
+  }
+}
+
+/* 辅助文字统一加重加清晰 */
+@layer utilities {
+  .text-axiom-muted {
+    font-weight: 600;
+    color: #374151 !important;
   }
 }

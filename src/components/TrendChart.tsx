@@ -8,7 +8,7 @@ export function TrendChart({ points }: { points: TrendPoint[] }) {
         <div className="text-base font-semibold">近 7 日风险线索</div>
         <div className="text-xs font-medium text-axiom-ok">+12% 周环比</div>
       </div>
-      <div className="mb-4 text-xs text-axiom-muted">有效线索量（降噪后）</div>
+      <div className="mb-4 text-sm font-medium text-axiom-muted">有效线索量（降噪后）</div>
       <div className="flex flex-1 items-end gap-3 px-1 pb-1">
         {points.map((p) => {
           const h = Math.max(18, Math.round((p.value / max) * 140));
@@ -20,7 +20,7 @@ export function TrendChart({ points }: { points: TrendPoint[] }) {
                 }`}
                 style={{ height: h }}
               />
-              <div className="text-[11px] text-axiom-muted">{p.day}</div>
+              <div className="text-xs font-semibold text-axiom-muted">{p.day}</div>
             </div>
           );
         })}

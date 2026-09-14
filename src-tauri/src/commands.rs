@@ -18,7 +18,7 @@ pub fn app_info() -> AppInfo {
     AppInfo {
         name: "axiom-risk-agent".into(),
         version: "0.1.0".into(),
-        product: "智联鉴控".into(),
+        product: "智鉴风控官".into(),
     }
 }
 
@@ -189,22 +189,65 @@ pub fn rule_chat(state: State<'_, AppState>, message: String) -> Result<RuleChat
     })
 }
 
+/// 放到 blocking 线程，避免同步占用命令线程导致界面卡住：用户消息与「思考中」无法先渲染。
 #[tauri::command]
-pub fn agent_chat(
-    state: State<'_, AppState>,
+pub async fn agent_chat(
+    _state: State<'_, AppState>,
     req: AgentChatRequest,
 ) -> Result<AgentChatResponse, String> {
-    let cfg = with_db(&state, |conn| llm::load_config(conn))?;
-    if !cfg.is_ready() {
-        return Ok(AgentChatResponse {
-            ok: false,
-            reply: "尚未配置 LLM。请打开「设置」，填写 API Base URL、Model 与 API Key 并启用。".into(),
-            used_llm: false,
-            mutated: false,
-            tool_traces: vec![],
-        });
-    }
-    crate::agent::run_agent_with_state(&state, &cfg, &req)
+    let db_path = crate::db::default_db_path();
+    tauri::async_runtime::spawn_blocking(move || {
+        let conn = crate::db::open(&db_path)?;
+        let cfg = llm::load_config(&conn)?;
+        if !cfg.is_ready() {
+            return Ok(AgentChatResponse {
+                ok: false,
+                reply: "尚未配置 LLM。请打开「设置」，填写 API Base URL、Model 与 API Key 并启用。"
+                    .into(),
+                used_llm: false,
+                mutated: false,
+                tool_traces: vec![],
+            });
+        }
+        let db = std::sync::Mutex::new(conn);
+        crate::agent::run_agent(&db, &cfg, &req)
+    })
+    .await
+    .map_err(|e| format!("问鉴控任务异常: {e}"))?
+}
+
+#[tauri::command]
+pub fn list_agent_conversations(
+    state: State<'_, AppState>,
+    limit: Option<i64>,
+) -> Result<Vec<AgentConversationSummary>, String> {
+    with_db(&state, |conn| {
+        db::list_agent_conversations(conn, limit.unwrap_or(50))
+    })
+}
+
+#[tauri::command]
+pub fn get_agent_conversation(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Option<AgentConversation>, String> {
+    with_db(&state, |conn| db::get_agent_conversation(conn, &id))
+}
+
+#[tauri::command]
+pub fn save_agent_conversation(
+    state: State<'_, AppState>,
+    req: AgentConversationSave,
+) -> Result<AgentConversation, String> {
+    with_db(&state, |conn| db::save_agent_conversation(conn, &req))
+}
+
+#[tauri::command]
+pub fn delete_agent_conversation(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    with_db(&state, |conn| db::delete_agent_conversation(conn, &id))
 }
 
 #[tauri::command]
@@ -548,7 +591,14 @@ pub async fn analyze_finance_report(
                 .filter(|s| {
                     matches!(
                         s.as_str(),
-                        "loan" | "guarantee" | "traffic" | "payment" | "data" | "collection"
+                        "loan"
+                            | "guarantee"
+                            | "traffic"
+                            | "payment"
+                            | "data"
+                            | "collection"
+                            | "interbank"
+                            | "ops"
                     )
                 })
             {
@@ -784,6 +834,8 @@ fn build_dashboard(partners: &[Partner], clues: &[RiskClue]) -> DashboardSnapsho
         ("payment", "支付机构", "政策 · 处罚", "rose"),
         ("data", "数据服务商", "资质 · 政策前瞻", "sky"),
         ("collection", "催收机构", "暴力投诉 · 涉诉", "orange"),
+        ("interbank", "金市同业", "同业 · 流动性 · 合规", "teal"),
+        ("ops", "运营辅助", "外包 · 服务稳定", "slate"),
     ];
 
     let type_cards = type_meta
@@ -836,6 +888,7 @@ fn build_dashboard(partners: &[Partner], clues: &[RiskClue]) -> DashboardSnapsho
             title: c.title.clone(),
             time: c.event_date.clone(),
             level: c.level,
+            clue_id: Some(c.id.clone()),
         })
         .collect();
 

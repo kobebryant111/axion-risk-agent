@@ -33,7 +33,13 @@ export default function App() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [rules, setRules] = useState<RuleView[]>([]);
   const [bgJob, setBgJob] = useState<BgImportJob | null>(null);
+  const [focusClueId, setFocusClueId] = useState<string | null>(null);
   const jobLock = useRef(false);
+
+  const openWhistle = useCallback((clueId?: string) => {
+    setFocusClueId(clueId ?? null);
+    setNav("whistle");
+  }, []);
 
   const refreshAll = useCallback(async () => {
     const [d, c, p, r] = await Promise.all([
@@ -125,13 +131,23 @@ export default function App() {
   return (
     <div className="box-border flex h-full min-h-0 gap-4 overflow-hidden bg-axiom-bg p-4">
       <Sidebar active={nav} onChange={setNav} />
-      {nav === "overview" && <Overview dash={dash} clues={clues} />}
+      {nav === "overview" && (
+        <Overview
+          dash={dash}
+          clues={clues}
+          onCluesChanged={setClues}
+          onRefreshDash={async () => setDash(await loadDashboard())}
+          onViewAllClues={() => openWhistle()}
+        />
+      )}
       {nav === "whistle" && (
         <WhistlePage
           clues={clues}
           partners={partners}
           onCluesChanged={setClues}
           onRefreshAll={refreshAll}
+          focusClueId={focusClueId}
+          onFocusConsumed={() => setFocusClueId(null)}
         />
       )}
       {nav === "guardian" && <GuardianPage partners={partners} />}

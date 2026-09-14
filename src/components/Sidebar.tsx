@@ -28,14 +28,13 @@ export function Sidebar({ active, onChange }: Props) {
   return (
     <aside className="flex h-full w-[220px] shrink-0 flex-col rounded-[28px] bg-white/90 p-5 shadow-soft">
       <div className="mb-8 flex items-center gap-3 px-1">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-axiom-accent text-lg font-bold text-white">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-axiom-accent text-lg font-bold text-white">
           A
         </div>
-        <div>
-          <div className="text-lg font-bold tracking-tight text-axiom-text">
-            axiom
+        <div className="min-w-0">
+          <div className="truncate text-base font-bold tracking-tight text-axiom-text">
+            智鉴风控官
           </div>
-          <div className="text-[11px] text-axiom-muted">智联鉴控</div>
         </div>
       </div>
 
@@ -47,10 +46,10 @@ export function Sidebar({ active, onChange }: Props) {
               key={item.key}
               type="button"
               onClick={() => onChange(item.key)}
-              className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm transition ${
+              className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-left text-[15px] transition ${
                 isActive
-                  ? "bg-axiom-soft font-semibold text-axiom-accent"
-                  : "text-axiom-muted hover:bg-black/[0.03] hover:text-axiom-text"
+                  ? "bg-axiom-soft font-bold text-axiom-accent"
+                  : "font-semibold text-axiom-muted hover:bg-black/[0.03] hover:text-axiom-text"
               }`}
             >
               <span

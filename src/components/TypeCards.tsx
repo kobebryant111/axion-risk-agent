@@ -7,11 +7,13 @@ const TONE_BG: Record<string, string> = {
   rose: "bg-[#ffe8ef] text-[#e11d48]",
   sky: "bg-[#e6f7ff] text-[#0284c7]",
   orange: "bg-[#ffedd5] text-[#ea580c]",
+  teal: "bg-[#ccfbf1] text-[#0f766e]",
+  slate: "bg-[#e2e8f0] text-[#475569]",
 };
 
 export function TypeCards({ cards }: { cards: TypeCard[] }) {
   return (
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-3 2xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       {cards.map((card) => (
         <div key={card.key} className="card p-4">
           <div
@@ -24,17 +26,17 @@ export function TypeCards({ cards }: { cards: TypeCard[] }) {
           <div className="text-sm font-semibold text-axiom-text">
             {card.title}
           </div>
-          <div className="mt-0.5 text-[11px] text-axiom-muted">
+          <div className="mt-0.5 text-xs font-medium text-axiom-muted">
             {card.subtitle}
           </div>
           <div className="mt-3 flex items-end justify-between text-xs">
             <div>
-              <div className="text-axiom-muted">昨日新增</div>
-              <div className="text-base font-bold">{card.yesterdayNew}</div>
+              <div className="font-medium text-axiom-muted">昨日新增</div>
+              <div className="text-lg font-bold tracking-tight">{card.yesterdayNew}</div>
             </div>
             <div className="text-right">
-              <div className="text-axiom-muted">高风险</div>
-              <div className="text-base font-bold text-axiom-warn">
+              <div className="font-medium text-axiom-muted">高风险</div>
+              <div className="text-lg font-bold tracking-tight text-axiom-warn">
                 {card.highCount}
               </div>
             </div>

@@ -29,7 +29,7 @@ mod windows_impl {
         }
 
         let yes = message(
-            "智联鉴控需要 Microsoft Edge WebView2 才能显示界面。\n\n未检测到运行时，是否现在自动下载并安装？\n（安装过程可能弹出系统权限确认）",
+            "智鉴风控官需要 Microsoft Edge WebView2 才能显示界面。\n\n未检测到运行时，是否现在自动下载并安装？\n（安装过程可能弹出系统权限确认）",
             "需要安装 WebView2",
             MB_YESNO | MB_ICONWARNING,
         );
@@ -45,7 +45,7 @@ mod windows_impl {
         match download_and_run_bootstrapper() {
             Ok(()) if webview2_installed() => {
                 message(
-                    "WebView2 已安装完成，即将启动智联鉴控。",
+                    "WebView2 已安装完成，即将启动智鉴风控官。",
                     "安装成功",
                     MB_OK | MB_ICONINFORMATION,
                 );

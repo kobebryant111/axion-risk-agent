@@ -42,7 +42,7 @@ pub fn tool_defs(mcp: &EnterpriseMcpConfig, search_ready: bool) -> Vec<ToolDef> 
                 parameters: json!({
                     "type":"object",
                     "properties":{
-                        "partner_type":{"type":"string","description":"common/loan/guarantee/traffic/payment/data/collection"},
+                        "partner_type":{"type":"string","description":"common/loan/guarantee/traffic/payment/data/collection/interbank/ops"},
                         "query":{"type":"string","description":"按规则ID或风险点模糊匹配"}
                     }
                 }),
@@ -138,7 +138,7 @@ pub fn tool_defs(mcp: &EnterpriseMcpConfig, search_ready: bool) -> Vec<ToolDef> 
                     "properties":{
                         "partner_id":{"type":"string"},
                         "partner_name":{"type":"string"},
-                        "partner_type":{"type":"string","description":"loan|guarantee|traffic|payment|data|collection"},
+                        "partner_type":{"type":"string","description":"loan|guarantee|traffic|payment|data|collection|interbank|ops"},
                         "uscc":{"type":"string"},
                         "scenario":{"type":"string","description":"准入|续约|再审"}
                     }
@@ -229,7 +229,7 @@ pub fn tool_defs(mcp: &EnterpriseMcpConfig, search_ready: bool) -> Vec<ToolDef> 
     tools
 }
 
-const SYSTEM_PROMPT: &str = r#"你是「智联鉴控」合作机构风险管理 AI 智能体助手。
+const SYSTEM_PROMPT: &str = r#"你是「智鉴风控官」合作机构风险管理 AI 智能体助手。
 你可以帮助用户：查询机构名单、风险线索、规则库；启用/停用/改等级规则；新增自定义规则；触发吹哨跑批；经营守护（财报评估）；准入瞭望（拟合作前置合规研判）；解读风险含义。
 准入场景强调：业务开发初期即可研判，从源头阻断「先合作后尽调」；无证据时结论应为待核验而非绿灯通过。
 若已配置百度千帆搜索，可用 baidu_web_search 做真实全网搜索（新闻/处罚/投诉等公开网页）。

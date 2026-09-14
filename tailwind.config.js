@@ -9,8 +9,9 @@ export default {
           surface: "#ffffff",
           accent: "#7c5cfc",
           soft: "#ece7ff",
-          muted: "#9ca3af",
-          text: "#1f2937",
+          /** 投屏可读：gray-700，远距离投影更清晰 */
+          muted: "#374151",
+          text: "#0f172a",
           danger: "#ef4444",
           warn: "#f59e0b",
           ok: "#22c55e",

@@ -2,7 +2,7 @@
   "name": "axiom-risk-agent",
   "private": true,
   "version": "0.1.0",
-  "description": "智联鉴控 · 合作机构全生命周期风险管理桌面客户端",
+  "description": "智鉴风控官 · 合作机构全生命周期风险管理桌面客户端",
   "type": "module",
   "scripts": {
     "dev": "vite",

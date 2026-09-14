@@ -694,7 +694,7 @@ pub fn extract_metrics_from_text(
 {
   "partnerName":"企业全称",
   "period":"如 2025全年",
-  "partnerType":"loan|guarantee|traffic|payment|data|collection",
+  "partnerType":"loan|guarantee|traffic|payment|data|collection|interbank|ops",
   "revenue":数字或null,
   "revenueYoy":同比%,
   "netProfit":,
@@ -1166,7 +1166,7 @@ fn render_markdown(
     if !m.notes.is_empty() {
         md.push_str(&format!("\n## 附录 · 备注\n\n{}\n", m.notes));
     }
-    md.push_str("\n---\n*智联鉴控 · 经营守护自动生成；红线项须人工复核。*\n");
+    md.push_str("\n---\n*智鉴风控官 · 经营守护自动生成；红线项须人工复核。*\n");
     md
 }
 
@@ -1207,6 +1207,8 @@ pub fn partner_type_label(code: &str) -> String {
         "payment" => "支付机构".into(),
         "data" => "数据服务商".into(),
         "collection" => "催收机构".into(),
+        "interbank" => "金市同业".into(),
+        "ops" => "运营辅助".into(),
         other => other.to_string(),
     }
 }

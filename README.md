@@ -1,10 +1,10 @@
-# 智联鉴控 · Axiom Risk Agent
+# 智鉴风控官 · Axiom Risk Agent
 
 面向消费金融合作机构的全生命周期风险管理桌面客户端。覆盖 **准入前置核验 → 存续期舆情吹哨 → 季度经营复盘**。
 
 | 项 | 说明 |
 |---|---|
-| 产品名称 | 智联鉴控（Axiom Risk Agent） |
+| 产品名称 | 智鉴风控官（Axiom Risk Agent） |
 | 形态 | Tauri 2 本地桌面应用（macOS / Windows） |
 | 技术栈 | Rust + React 19 + TypeScript + Vite + Tailwind（Soft Dashboard） |
 | 本地库 | SQLite（WAL），默认路径见下文 |

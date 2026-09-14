@@ -30,6 +30,9 @@ type Props = {
   partners: Partner[];
   onCluesChanged: (clues: RiskClue[]) => void;
   onRefreshAll: () => Promise<void>;
+  /** 从总览跳转时预选并打开该线索 */
+  focusClueId?: string | null;
+  onFocusConsumed?: () => void;
 };
 
 const WEEKDAYS = [
@@ -95,6 +98,8 @@ export function WhistlePage({
   partners,
   onCluesChanged,
   onRefreshAll,
+  focusClueId,
+  onFocusConsumed,
 }: Props) {
   const partnerCount = partners.length;
   const [saving, setSaving] = useState(false);
@@ -145,6 +150,13 @@ export function WhistlePage({
     void refreshSchedule(true);
     void refreshReports();
   }, []);
+
+  useEffect(() => {
+    if (!focusClueId) return;
+    const hit = clues.find((c) => c.id === focusClueId);
+    if (hit) setSelected(hit);
+    onFocusConsumed?.();
+  }, [focusClueId, clues, onFocusConsumed]);
 
   useEffect(() => {
     if (partners.length === 0) return;
@@ -264,7 +276,7 @@ export function WhistlePage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 rounded-full bg-black/[0.04] py-1 pl-3 pr-2">
-            <span className="text-xs text-axiom-muted">日期</span>
+            <span className="text-sm font-semibold text-axiom-muted">日期</span>
             <input
               type="date"
               value={runDate}
@@ -346,7 +358,7 @@ export function WhistlePage({
           </div>
         </div>
         {schedule && (
-          <div className="text-[11px] text-axiom-muted">
+          <div className="text-xs font-semibold text-axiom-muted">
             {schedule.nextDailyHint}
             {schedule.lastDailyRun ? ` · 上次日报 ${schedule.lastDailyRun}` : ""}
             {"  ·  "}
@@ -355,7 +367,7 @@ export function WhistlePage({
         )}
 
         <div className="border-t border-black/[0.04] pt-4">
-          <div className="mb-3 text-[11px] leading-relaxed text-axiom-muted">
+          <div className="mb-3 text-sm font-semibold leading-relaxed text-axiom-muted">
             手动跑批按上方日期检索：日报 {runDate}；周报 {weekRangeHint(runDate)}。
             机构范围如下（可指定公司）；定时任务仍按滚动 24 小时 / 7 天。
           </div>
@@ -413,14 +425,14 @@ export function WhistlePage({
           ))}
           {(batch.searchQueries ?? []).length > 0 && (
             <div className="mt-3 space-y-1">
-              <div className="text-[11px] font-semibold text-axiom-muted">
+              <div className="text-sm font-bold text-axiom-muted">
                 本次检索词（{(batch.searchQueries ?? []).length} 条）
               </div>
               <div className="max-h-48 space-y-1 overflow-y-auto">
               {(batch.searchQueries ?? []).map((q) => (
                 <div
                   key={q}
-                  className="break-all rounded-xl bg-black/[0.03] px-3 py-2 font-mono text-[11px] leading-relaxed text-axiom-text/80"
+                  className="break-all rounded-xl bg-black/[0.03] px-3 py-2 font-mono text-sm font-medium leading-relaxed text-axiom-text"
                 >
                   {q}
                 </div>
@@ -466,11 +478,11 @@ export function WhistlePage({
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold">{r.title}</div>
-                  <div className="mt-0.5 truncate text-[11px] text-axiom-muted">
+                  <div className="mt-0.5 truncate text-xs font-semibold text-axiom-muted">
                     {r.summary}
                   </div>
                 </div>
-                <div className="shrink-0 text-right text-[11px] text-axiom-muted">
+                <div className="shrink-0 text-right text-xs font-semibold text-axiom-muted">
                   <div>
                     L1 {r.level1} · L2 {r.level2}
                   </div>
@@ -543,7 +555,7 @@ export function WhistlePage({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold">{c.title}</div>
-                  <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-axiom-muted">
+                  <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs font-semibold text-axiom-muted">
                     <span>{c.partner}</span>
                     <span>{c.partnerType}</span>
                     <span>{c.eventDate}</span>
@@ -557,7 +569,7 @@ export function WhistlePage({
                     {c.denoiseStatus === "repeat" && <span>重复折叠</span>}
                   </div>
                 </div>
-                <div className="shrink-0 text-xs text-axiom-muted">{c.status}</div>
+                <div className="shrink-0 text-sm font-semibold text-axiom-muted">{c.status}</div>
               </button>
             ))
           )}
@@ -601,7 +613,7 @@ export function WhistlePage({
               <Row k="状态" v={selected.status} />
             </div>
             <div className="space-y-2 border-t border-black/[0.04] p-5">
-              <div className="text-xs text-axiom-muted">人工改级（留痕审计）</div>
+              <div className="text-sm font-semibold text-axiom-muted">人工改级（留痕审计）</div>
               <div className="flex flex-wrap gap-2">
                 {[1, 2, 3, 4].map((lv) => (
                   <button
@@ -663,7 +675,7 @@ function Row({ k, v, url }: { k: string; v: string; url?: string }) {
   const isLink = Boolean(href && /^https?:\/\//i.test(href));
   return (
     <div>
-      <div className="text-xs text-axiom-muted">{k}</div>
+      <div className="text-sm font-semibold text-axiom-muted">{k}</div>
       {isLink ? (
         <a
           href={href}
