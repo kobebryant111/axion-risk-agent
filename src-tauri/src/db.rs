@@ -97,6 +97,7 @@ pub fn open(path: &Path) -> Result<Connection, String> {
     let _ = crate::finance::ensure_schema(&conn);
     let _ = crate::admission::ensure_schema(&conn);
     let _ = crate::whistle_reports::ensure_schema(&conn);
+    let _ = ensure_agent_conversations_schema(&conn);
     // 清掉历史黑猫 fixture / 演示线索，避免当成真实监测结果
     let _ = conn.execute(
         "DELETE FROM seen_hashes WHERE evidence_hash IN (
@@ -583,6 +584,165 @@ pub fn clear_custom_rules(conn: &Connection) -> Result<(), String> {
 pub fn clear_rule_overrides(conn: &Connection) -> Result<(), String> {
     conn.execute("DELETE FROM rule_overrides", [])
         .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub fn ensure_agent_conversations_schema(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS agent_conversations (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            messages_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_conversations_updated
+            ON agent_conversations(updated_at DESC);
+        ",
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn map_agent_conversation(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<crate::models::AgentConversation> {
+    let messages_json: String = row.get(2)?;
+    let messages: Vec<crate::models::AgentStoredMessage> =
+        serde_json::from_str(&messages_json).unwrap_or_default();
+    Ok(crate::models::AgentConversation {
+        id: row.get(0)?,
+        title: row.get(1)?,
+        messages,
+        created_at: row.get(3)?,
+        updated_at: row.get(4)?,
+    })
+}
+
+pub fn list_agent_conversations(
+    conn: &Connection,
+    limit: i64,
+) -> Result<Vec<crate::models::AgentConversationSummary>, String> {
+    let lim = limit.clamp(1, 200);
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, messages_json, created_at, updated_at
+               FROM agent_conversations
+              ORDER BY updated_at DESC
+              LIMIT ?1",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![lim], |row| {
+            let messages_json: String = row.get(2)?;
+            let count = serde_json::from_str::<Vec<serde_json::Value>>(&messages_json)
+                .map(|v| v.len() as u32)
+                .unwrap_or(0);
+            Ok(crate::models::AgentConversationSummary {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                created_at: row.get(3)?,
+                updated_at: row.get(4)?,
+                message_count: count,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(rows)
+}
+
+pub fn get_agent_conversation(
+    conn: &Connection,
+    id: &str,
+) -> Result<Option<crate::models::AgentConversation>, String> {
+    conn.query_row(
+        "SELECT id, title, messages_json, created_at, updated_at
+           FROM agent_conversations WHERE id = ?1",
+        params![id],
+        map_agent_conversation,
+    )
+    .optional()
+    .map_err(|e| e.to_string())
+}
+
+pub fn save_agent_conversation(
+    conn: &Connection,
+    input: &crate::models::AgentConversationSave,
+) -> Result<crate::models::AgentConversation, String> {
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let id = input
+        .id
+        .as_ref()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let title = input
+        .title
+        .as_ref()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
+            input
+                .messages
+                .iter()
+                .find(|m| m.role == "user")
+                .map(|m| {
+                    let t = m.content.trim();
+                    if t.chars().count() > 36 {
+                        format!("{}…", t.chars().take(36).collect::<String>())
+                    } else if t.is_empty() {
+                        "新对话".into()
+                    } else {
+                        t.to_string()
+                    }
+                })
+                .unwrap_or_else(|| "新对话".into())
+        });
+
+    let messages_json =
+        serde_json::to_string(&input.messages).map_err(|e| e.to_string())?;
+
+    let existing = get_agent_conversation(conn, &id)?;
+    let created_at = existing
+        .as_ref()
+        .map(|c| c.created_at.clone())
+        .unwrap_or_else(|| now.clone());
+
+    // 已有标题且未显式传入时，保留原标题（避免每轮被截断重写）
+    let title = if input.title.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()).is_none() {
+        existing
+            .as_ref()
+            .map(|c| c.title.clone())
+            .filter(|t| t != "新对话")
+            .unwrap_or(title)
+    } else {
+        title
+    };
+
+    conn.execute(
+        "INSERT INTO agent_conversations (id, title, messages_json, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(id) DO UPDATE SET
+           title=excluded.title,
+           messages_json=excluded.messages_json,
+           updated_at=excluded.updated_at",
+        params![id, title, messages_json, created_at, now],
+    )
+    .map_err(|e| e.to_string())?;
+
+    get_agent_conversation(conn, &id)?
+        .ok_or_else(|| "保存对话后读取失败".into())
+}
+
+pub fn delete_agent_conversation(conn: &Connection, id: &str) -> Result<(), String> {
+    conn.execute(
+        "DELETE FROM agent_conversations WHERE id = ?1",
+        params![id],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 

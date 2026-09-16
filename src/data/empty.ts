@@ -7,6 +7,8 @@ const TYPE_CARDS: DashboardSnapshot["typeCards"] = [
   { key: "payment", title: "支付机构", subtitle: "政策 · 处罚", yesterdayNew: 0, highCount: 0, progress: 0, tone: "rose" },
   { key: "data", title: "数据服务商", subtitle: "资质 · 政策前瞻", yesterdayNew: 0, highCount: 0, progress: 0, tone: "sky" },
   { key: "collection", title: "催收机构", subtitle: "暴力投诉 · 涉诉", yesterdayNew: 0, highCount: 0, progress: 0, tone: "orange" },
+  { key: "interbank", title: "金市同业", subtitle: "同业 · 流动性 · 合规", yesterdayNew: 0, highCount: 0, progress: 0, tone: "teal" },
+  { key: "ops", title: "运营辅助", subtitle: "外包 · 服务稳定", yesterdayNew: 0, highCount: 0, progress: 0, tone: "slate" },
 ];
 
 /** 无真实数据时的空看板，不含演示线索 */

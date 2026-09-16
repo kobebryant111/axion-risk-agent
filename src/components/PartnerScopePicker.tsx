@@ -15,6 +15,8 @@ const TYPE_OPTIONS = [
   { value: "payment", label: "支付" },
   { value: "data", label: "数据" },
   { value: "collection", label: "催收" },
+  { value: "interbank", label: "金市同业" },
+  { value: "ops", label: "运营辅助" },
 ];
 
 const PREVIEW = 5;

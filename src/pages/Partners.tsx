@@ -20,6 +20,8 @@ const TYPE_OPTIONS = [
   { value: "payment", label: "支付" },
   { value: "data", label: "数据" },
   { value: "collection", label: "催收" },
+  { value: "interbank", label: "金市同业" },
+  { value: "ops", label: "运营辅助" },
 ];
 
 function emptyEdit(): PartnerEditInput {
@@ -55,10 +57,10 @@ export function PartnersPage({
     return [...m.entries()];
   }, [partners]);
 
-  const typeKeys = useMemo(() => {
-    const present = new Set(partners.map((p) => p.partnerType));
-    return ["all", ...TYPE_OPTIONS.map((t) => t.value).filter((v) => present.has(v))];
-  }, [partners]);
+  const typeKeys = useMemo(
+    () => ["all", ...TYPE_OPTIONS.map((t) => t.value)],
+    [],
+  );
 
   const filtered =
     typeFilter === "all"

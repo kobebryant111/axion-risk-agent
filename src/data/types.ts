@@ -42,6 +42,7 @@ export type EventItem = {
   title: string;
   time: string;
   level: number;
+  clueId?: string;
 };
 
 export type DashboardSnapshot = {
@@ -208,6 +209,28 @@ export type AgentChatResponse = {
   usedLlm: boolean;
   mutated: boolean;
   toolTraces: string[];
+};
+
+export type AgentStoredMessage = {
+  role: string;
+  content: string;
+  traces?: string[];
+};
+
+export type AgentConversationSummary = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+};
+
+export type AgentConversation = {
+  id: string;
+  title: string;
+  messages: AgentStoredMessage[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 

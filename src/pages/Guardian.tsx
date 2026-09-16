@@ -27,6 +27,8 @@ const TYPE_OPTS = [
   { value: "payment", label: "支付机构" },
   { value: "data", label: "数据服务商" },
   { value: "collection", label: "催收机构" },
+  { value: "interbank", label: "金市同业" },
+  { value: "ops", label: "运营辅助" },
 ];
 
 function gradeTone(g: string) {

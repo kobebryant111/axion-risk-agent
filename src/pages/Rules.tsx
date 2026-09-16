@@ -24,6 +24,8 @@ const TYPE_ORDER = [
   "payment",
   "data",
   "collection",
+  "interbank",
+  "ops",
 ];
 
 function typeLabel(key: string, rules: RuleView[]) {
@@ -337,6 +339,8 @@ export function RulesPage({
                   <option value="payment">支付</option>
                   <option value="data">数据</option>
                   <option value="collection">催收</option>
+                  <option value="interbank">金市同业</option>
+                  <option value="ops">运营辅助</option>
                 </select>
               </label>
               <Field

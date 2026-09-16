@@ -165,6 +165,8 @@ pub fn partner_type_label(raw: &str) -> String {
         "payment" => "支付".into(),
         "data" => "数据".into(),
         "collection" => "催收".into(),
+        "interbank" => "金市同业".into(),
+        "ops" => "运营辅助".into(),
         _ => raw.to_string(),
     }
 }

@@ -68,7 +68,7 @@ export function downloadPartnerTemplate() {
         [""],
         ["1. 请只在「机构名单」工作表填写数据，不要修改表头、不要删列。"],
         ["2. 必填列：机构全称、机构类型。"],
-        ["3. 机构类型仅允许：助贷、融资担保、引流、支付、数据、催收。"],
+        ["3. 机构类型仅允许：助贷、融资担保、引流、支付、数据、催收、金市同业、运营辅助。"],
         ["4. 合作状态：合作中 / 暂停 / 退出；空白视为合作中。"],
         ["5. 关联方可填多个，用顿号、分号或竖线分隔。"],
         ["6. 导入为全量替换，将覆盖当前名单。也可在页面逐条新建。"],
@@ -94,6 +94,81 @@ export function downloadPartnerTemplate() {
   ]);
 }
 
+/** 导出吹哨报告中的预警事项（Excel） */
+export function downloadWhistleAlerts(opts: {
+  kindLabel: string;
+  period: string;
+  title: string;
+  createdAt: string;
+  summary: string;
+  clues: {
+    level: number;
+    title: string;
+    partner: string;
+    partnerType?: string;
+    eventDate: string;
+    status: string;
+    sourceSystem?: string;
+    credibility?: string;
+    summary?: string;
+    ruleId?: string;
+    legalBasis?: string;
+    sourceUrl?: string;
+  }[];
+  sourceLabel: (source?: string) => string;
+}) {
+  const safePeriod = opts.period.replace(/[\\/:*?"<>|]/g, "-");
+  const rows: (string | number)[][] = [
+    [
+      "等级",
+      "标题",
+      "机构",
+      "机构类型",
+      "事件日期",
+      "状态",
+      "来源",
+      "可信度",
+      "摘要",
+      "规则编号",
+      "法规依据",
+      "原文链接",
+    ],
+    ...opts.clues.map((c) => [
+      `L${c.level}`,
+      c.title,
+      c.partner,
+      c.partnerType ?? "",
+      c.eventDate,
+      c.status,
+      opts.sourceLabel(c.sourceSystem),
+      c.credibility ? `${c.credibility} 类源` : "",
+      c.summary ?? "",
+      c.ruleId ?? "",
+      c.legalBasis ?? "",
+      c.sourceUrl ?? "",
+    ]),
+  ];
+
+  downloadWorkbook(`风险吹哨${opts.kindLabel}-${safePeriod}-预警事项.xlsx`, [
+    {
+      name: "报告摘要",
+      widths: [16, 56],
+      rows: [
+        ["报告标题", opts.title],
+        ["周期", opts.period],
+        ["生成时间", opts.createdAt],
+        ["预警条数", opts.clues.length],
+        ["摘要", opts.summary],
+      ],
+    },
+    {
+      name: "预警事项",
+      widths: [8, 40, 22, 12, 12, 10, 10, 10, 40, 14, 20, 36],
+      rows,
+    },
+  ]);
+}
+
 export function downloadRuleTemplate() {
   downloadWorkbook("风险规则库导入模板.xlsx", [
     {
@@ -104,7 +179,7 @@ export function downloadRuleTemplate() {
         [""],
         ["1. 请只在「规则库」工作表填写数据，不要修改表头、不要删列。"],
         ["2. 必填列：机构类型、风险点、等级。规则编号可空，系统会自动生成。"],
-        ["3. 机构类型：通用、助贷、融资担保、引流、支付、数据、催收。"],
+        ["3. 机构类型：通用、助贷、融资担保、引流、支付、数据、催收、金市同业、运营辅助。"],
         ["4. 等级填 1～4（1致命 / 2重大 / 3关注 / 4信息），也可写 L1～L4。"],
         ["5. 匹配关键词可多个，用顿号、分号或竖线分隔。"],
         ["6. 是否启用：是 / 否；空白视为启用。"],

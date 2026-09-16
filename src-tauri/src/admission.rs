@@ -372,12 +372,23 @@ pub fn run_review(
         }
     }
 
-    // 2) 本次上传材料 + 知识库
+    // 2) 本次上传材料（财报/尽调）+ 知识库
     if let Some(mat) = req.materials_text.as_ref().filter(|s| !s.trim().is_empty()) {
-        evidence_sources.push("上传材料".into());
+        let label = if mat.contains("财报")
+            || mat.contains("审计报告")
+            || mat.contains("资产负债表")
+            || mat.contains("利润表")
+            || mat.contains("营业收入")
+            || mat.contains("净利润")
+        {
+            "财报附件"
+        } else {
+            "上传材料"
+        };
+        evidence_sources.push(label.into());
         docs.push(EvidenceDoc {
-            source: "上传材料".into(),
-            text: mat.chars().take(20000).collect(),
+            source: label.into(),
+            text: mat.chars().take(40000).collect(),
             ref_url: String::new(),
             level: 2,
         });
@@ -476,7 +487,10 @@ pub fn run_review(
 
     let evidence_incomplete = docs.is_empty();
     let has_external = evidence_sources.iter().any(|s| {
-        matches!(s.as_str(), "企查查" | "天眼查" | "全网搜")
+        matches!(
+            s.as_str(),
+            "企查查" | "天眼查" | "全网搜" | "财报附件" | "上传材料"
+        )
     });
     // 融担核心经营指标若证据中完全未出现，不得绿灯
     let guarantee_thin = partner_type == "guarantee"
@@ -1107,19 +1121,23 @@ fn llm_admission_notes(
         .collect();
     let mut ordered: Vec<&EvidenceDoc> = docs.iter().collect();
     ordered.sort_by_key(|d| {
-        if d.source.contains("企查") || d.source.contains("天眼") {
+        if d.source.contains("财报") || d.source.contains("上传") {
             0u8
-        } else if d.source.contains("全网") {
+        } else if d.source.contains("企查") || d.source.contains("天眼") {
             1
-        } else {
+        } else if d.source.contains("全网") {
             2
+        } else {
+            3
         }
     });
     let evidence_brief: String = ordered
         .iter()
-        .take(12)
+        .take(14)
         .map(|d| {
-            let n = if d.source.contains("企查") || d.source.contains("天眼") {
+            let n = if d.source.contains("财报") || d.source.contains("上传") {
+                3200
+            } else if d.source.contains("企查") || d.source.contains("天眼") {
                 1600
             } else {
                 280
@@ -1132,13 +1150,15 @@ fn llm_admission_notes(
 
 必须包含：
 1）主体速览（名称、类型、能从证据读到的工商/许可要点）
-2）风险点统计：红/橙/黄各多少；并列出已触发项的具体含义
-3）待核验项：证据不足、无法确认的关键检查（尤其融担杠杆/代偿/准备金、完整司法处罚清单）
-4）结论建议：否决 / 有条件通过 / 待核验 / 通过 之一，并说明理由
+2）财报要点（若有「财报附件」）：营收/利润/资产负债率/现金流等关键指标与异常；无附件则写「未上传财报」
+3）风险点统计：红/橙/黄各多少；并列出已触发项的具体含义
+4）待核验项：证据不足、无法确认的关键检查（尤其融担杠杆/代偿/准备金、完整司法处罚清单）
+5）结论建议：否决 / 有条件通过 / 待核验 / 通过 之一，并说明理由
 硬约束：
-- 只依据给定证据，禁止编造案号、处罚决定书、失信名单；不确定就写「待核验」。
+- 只依据给定证据，禁止编造案号、处罚决定书、失信名单、财务数字；不确定就写「待核验」。
 - 工商登记（统一社会信用代码、注册资本、股东/实控人、成立日期、登记状态）以「企查查」「天眼查」来源为准。
 - 「全网搜」只是舆情/开庭/投诉网页，不能代替工商登记；不要把网页证据写成「材料中未提供工商信息」。
+- 「财报附件」与「全网搜」要交叉印证：舆情暴雷要对照财报是否恶化；财报异常要对照公开负面信息。
 - 若企查查/天眼查证据里已有字段，必须写出来并标明来源；若这两项显示「未完成」或正文无该字段，才写待核验。"#;
     let user = format!(
         "机构：{name}\n类型：{ptype}\n场景：{scenario}\n统计：红{red_n}/橙{orange_n}/黄{yellow_n}\n已触发：\n{}\n关键未触发（待核实）：\n{}\n证据摘要：\n{evidence_brief}",

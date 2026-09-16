@@ -290,7 +290,7 @@ pub fn parse_partners_csv(csv_text: &str) -> ImportResult {
             updated: 0,
             skipped: 0,
             errors: vec![
-                "请使用固定模板：须含「机构全称」与「机构类型」列（助贷/融资担保/引流/支付/数据/催收）"
+                "请使用固定模板：须含「机构全称」与「机构类型」列（助贷/融资担保/引流/支付/数据/催收/金市同业/运营辅助）"
                     .into(),
             ],
             partners: vec![],
@@ -323,7 +323,7 @@ pub fn parse_partners_csv(csv_text: &str) -> ImportResult {
         let Some(ptype) = PartnerType::parse(&type_raw) else {
             skipped += 1;
             errors.push(format!(
-                "第 {line} 行机构类型无法识别: {type_raw}（期望：助贷/融资担保/引流/支付/数据/催收）"
+                "第 {line} 行机构类型无法识别: {type_raw}（期望：助贷/融资担保/引流/支付/数据/催收/金市同业/运营辅助）"
             ));
             continue;
         };

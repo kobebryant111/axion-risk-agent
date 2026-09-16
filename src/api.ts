@@ -2,6 +2,9 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AgentChatMessage,
   AgentChatResponse,
+  AgentConversation,
+  AgentConversationSummary,
+  AgentStoredMessage,
   AuditLog,
   BatchResult,
   DashboardSnapshot,
@@ -186,6 +189,42 @@ export async function agentChat(
       toolTraces: [],
     };
   }
+}
+
+export async function listAgentConversations(
+  limit = 50,
+): Promise<AgentConversationSummary[]> {
+  return (
+    (await tryInvokeSoft<AgentConversationSummary[]>("list_agent_conversations", {
+      limit,
+    })) ?? []
+  );
+}
+
+export async function getAgentConversation(
+  id: string,
+): Promise<AgentConversation | null> {
+  return (
+    (await tryInvokeSoft<AgentConversation | null>("get_agent_conversation", {
+      id,
+    })) ?? null
+  );
+}
+
+export async function saveAgentConversation(input: {
+  id?: string;
+  title?: string;
+  messages: AgentStoredMessage[];
+}): Promise<AgentConversation | null> {
+  return (
+    (await tryInvokeSoft<AgentConversation>("save_agent_conversation", {
+      req: input,
+    })) ?? null
+  );
+}
+
+export async function deleteAgentConversation(id: string): Promise<void> {
+  await tryInvokeSoft("delete_agent_conversation", { id });
 }
 
 export async function getLlmConfig(): Promise<LlmConfigPublic> {

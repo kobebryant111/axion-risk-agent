@@ -13,6 +13,8 @@ function typeLabel(t: string) {
     payment: "支付机构",
     data: "数据服务商",
     collection: "催收机构",
+    interbank: "金市同业",
+    ops: "运营辅助",
   };
   return map[t] || t;
 }

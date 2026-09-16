@@ -154,7 +154,7 @@ fn parse_rules_csv(csv_text: &str) -> Result<(Vec<ExtractedRule>, Vec<String>), 
             Ok(t) => t,
             Err(_) => {
                 warnings.push(format!(
-                    "第 {line} 行机构类型无法识别: {type_raw}（期望：通用/助贷/融资担保/引流/支付/数据/催收）"
+                    "第 {line} 行机构类型无法识别: {type_raw}（期望：通用/助贷/融资担保/引流/支付/数据/催收/金市同业/运营辅助）"
                 ));
                 continue;
             }

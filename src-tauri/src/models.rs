@@ -11,6 +11,8 @@ pub enum PartnerType {
     Payment,
     Data,
     Collection,
+    Interbank,
+    Ops,
 }
 
 impl PartnerType {
@@ -22,6 +24,8 @@ impl PartnerType {
             Self::Payment => "payment",
             Self::Data => "data",
             Self::Collection => "collection",
+            Self::Interbank => "interbank",
+            Self::Ops => "ops",
         }
     }
 
@@ -33,6 +37,8 @@ impl PartnerType {
             Self::Payment => "支付机构",
             Self::Data => "数据服务商",
             Self::Collection => "催收机构",
+            Self::Interbank => "金市同业",
+            Self::Ops => "运营辅助",
         }
     }
 
@@ -68,6 +74,20 @@ impl PartnerType {
             || raw_trim.contains("逾期")
         {
             return Some(Self::Collection);
+        }
+        if s == "interbank"
+            || raw_trim.contains("金市同业")
+            || raw_trim.contains("金市")
+            || raw_trim.contains("同业")
+        {
+            return Some(Self::Interbank);
+        }
+        if s == "ops"
+            || s == "operation"
+            || raw_trim.contains("运营辅助")
+            || raw_trim.contains("运营")
+        {
+            return Some(Self::Ops);
         }
         None
     }
@@ -153,6 +173,8 @@ pub struct EventItem {
     pub title: String,
     pub time: String,
     pub level: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clue_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -512,7 +534,7 @@ pub struct FinanceMetrics {
 pub struct FinanceExtractResult {
     pub partner_name: Option<String>,
     pub period: Option<String>,
-    /// loan | guarantee | traffic | payment | data | collection
+    /// loan | guarantee | traffic | payment | data | collection | interbank | ops
     pub partner_type: Option<String>,
     #[serde(flatten)]
     pub metrics: FinanceMetrics,
@@ -731,4 +753,41 @@ pub struct AgentChatResponse {
     pub used_llm: bool,
     pub mutated: bool,
     pub tool_traces: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentStoredMessage {
+    pub role: String,
+    pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub traces: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentConversationSummary {
+    pub id: String,
+    pub title: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub message_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentConversation {
+    pub id: String,
+    pub title: String,
+    pub messages: Vec<AgentStoredMessage>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentConversationSave {
+    pub id: Option<String>,
+    pub title: Option<String>,
+    pub messages: Vec<AgentStoredMessage>,
 }
